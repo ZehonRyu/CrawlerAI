@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>智能爬虫系统</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>智能爬虫系统</h1>
+
+        <!-- 选项部分 -->
+        <div class="section">
+            <div class="section-title">选择爬取任务</div>
+            <div class="form-group">
+                <label for="task-type">任务类型:</label>
+                <select id="task-type">
+                    <option value="">请选择任务类型</option>
+                    <option value="zhihu-question">爬取知乎单个问题</option>
+                    <option value="bili-video">爬取B站单个视频</option>
+                    <option value="xhs-detail">爬取小红书单个帖子下方评论</option>
+                </select>
+            </div>
+
+            <!-- 动态参数输入区域 -->
+            <div id="config-section" class="hidden">
+                <div class="section-title">配置参数</div>
+                <div id="dynamic-config"></div>
+            </div>
+        </div>
+
+        <!-- 运行控制部分 -->
+        <div class="section">
+            <button id="run-btn" class="btn-run" disabled>运行爬虫和生成模型</button>
+            <div id="run-status" class="status status-info hidden"></div>
+        </div>
+<!-- 结果展示部分 -->
+<div id="result-section" class="section hidden">
+    <div class="section-title">处理结果</div>
+
+    <!-- 总结内容区域 -->
+    <button id="summarize-btn" class="btn-summarize">总结内容</button>
+    <div id="summary-result" class="result-section"></div>
+
+    <!-- 问答区域 -->
+    <button id="qa-btn" class="btn-qa">模型问答</button>
+    <div id="qa-section" class="qa-section hidden">
+        <div class="qa-input">
+            <input type="text" id="qa-input" placeholder="请输入您的问题...">
+            <button id="qa-submit">提问</button>
+        </div>
+        <div id="qa-history" class="qa-history"></div>
+    </div>
+</div>
+
+    <script src="js/api.js"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

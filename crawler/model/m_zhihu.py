@@ -1,0 +1,95 @@
+from typing import Optional, Union
+
+from pydantic import BaseModel, Field
+
+
+class ZhihuContent(BaseModel):
+    """
+    知乎内容（回答、文章、视频）
+    """
+
+    content_id: str = Field(default="", description="内容ID")
+    content_type: str = Field(default="", description="内容类型(article | answer | zvideo)")
+    content_text: str = Field(default="", description="内容文本, 如果是视频类型这里为空")
+    content_url: str = Field(default="", description="内容落地链接")
+    question_id: str = Field(default="", description="问题ID, type为answer时有值")
+    title: str = Field(default="", description="内容标题")
+    desc: str = Field(default="", description="内容描述")
+    created_time: str = Field(default=0, description="创建时间")
+    updated_time: str = Field(default=0, description="更新时间")
+    voteup_count: int = Field(default=0, description="赞同人数")
+    comment_count: int = Field(default=0, description="评论数量")
+    source_keyword: str = Field(default="", description="来源关键词")
+
+    user_id: str = Field(default="", description="用户ID")
+    user_link: str = Field(default="", description="用户主页链接")
+    user_nickname: str = Field(default="", description="用户昵称")
+    user_avatar: str = Field(default="", description="用户头像地址")
+    user_url_token: str = Field(default="", description="用户url_token")
+
+
+class ZhihuComment(BaseModel):
+    """
+    知乎评论
+    """
+
+    comment_id: str = Field(default="", description="评论ID")
+    parent_comment_id: str = Field(default="", description="父评论ID")
+    content: str = Field(default="", description="评论内容")
+    publish_time: int = Field(default=0, description="发布时间")
+    ip_location: Optional[str] = Field(default="", description="IP地理位置")
+    sub_comment_count: int = Field(default=0, description="子评论数")
+    like_count: int = Field(default=0, description="点赞数")
+    dislike_count: int = Field(default=0, description="踩数")
+    content_id: str = Field(default="", description="内容ID")
+    content_type: str = Field(default="", description="内容类型(article | answer | zvideo)")
+
+    user_id: str = Field(default="", description="用户ID")
+    user_link: str = Field(default="", description="用户主页链接")
+    user_nickname: str = Field(default="", description="用户昵称")
+    user_avatar: str = Field(default="", description="用户头像地址")
+
+
+class ZhihuCreator(BaseModel):
+    """
+    知乎创作者
+    """
+
+    user_id: str = Field(default="", description="用户ID")
+    user_link: str = Field(default="", description="用户主页链接")
+    user_nickname: str = Field(default="", description="用户昵称")
+    user_avatar: str = Field(default="", description="用户头像地址")
+    url_token: str = Field(default="", description="用户url_token")
+    gender: str = Field(default="", description="用户性别")
+    ip_location: Optional[str] = Field(default="", description="IP地理位置")
+    follows: int = Field(default=0, description="关注数")
+    fans: int = Field(default=0, description="粉丝数")
+    anwser_count: int = Field(default=0, description="回答数")
+    video_count: int = Field(default=0, description="视频数")
+    question_count: int = Field(default=0, description="提问数")
+    article_count: int = Field(default=0, description="文章数")
+    column_count: int = Field(default=0, description="专栏数")
+    get_voteup_count: int = Field(default=0, description="获得的赞同数")
+
+
+class ZhihuQuestionAnswer(BaseModel):
+    content_id: str
+    content_type: str
+    content_text: str
+    content_url: str
+    question_id: str
+    title: str
+    desc: str
+    # created_time: Optional[str]
+    # updated_time: Optional[str]
+    voteup_count: int
+    comment_count: int
+    source_keyword: str
+    user_id: str
+    user_link: str
+    user_nickname: str
+    user_avatar: Optional[str]
+    user_url_token: Optional[str]
+
+    created_time: Union[int, str]  # 允许整数或字符串
+    updated_time: Union[int, str]

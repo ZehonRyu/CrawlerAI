@@ -1,0 +1,11 @@
+flask==2.3.2
+flask-cors==4.0.0
+langchain==0.1.0
+langchain-community==0.0.16
+chromadb==0.4.22
+dashscope==1.14.2
+faster-whisper==0.9.0
+pydub==0.25.1
+opencc==1.1.6
+torch==2.1.0
+python-dotenv==1.0.0
