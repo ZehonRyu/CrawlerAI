@@ -151,9 +151,9 @@ config.local
 # Ignore files ending with _model
 *_model
 
-# AI模型文件和目录
+# AI模型文件和目录（你指定的路径）
 AI/audio_video/models/
-**/models--*--*/
+AI\audio_video\models/
 
 # 大型模型文件扩展名
 *.bin
