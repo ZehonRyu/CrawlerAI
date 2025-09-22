@@ -9,3 +9,8 @@ pydub==0.25.1
 opencc==1.1.6
 torch==2.1.0
 python-dotenv==1.0.0
+gunicorn==21.2.0
+httpx==0.25.0
+selenium==4.15.0
+tiktoken==0.5.2
+playwright==1.40.0

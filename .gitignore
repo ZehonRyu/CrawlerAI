@@ -151,6 +151,8 @@ config.local
 # Ignore files ending with _model
 *_model
 
+mylog.txt
+
 # AI模型文件和目录（你指定的路径）
 AI/audio_video/models/
 AI\audio_video\models/
