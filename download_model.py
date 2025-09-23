@@ -38,10 +38,9 @@ def extract_model(zip_path, extract_to):
 
 
 def main():
-    # 配置信息 - 根据你的实际情况修改
-    REPO_OWNER = "your_github_username"  # 替换为你的GitHub用户名
-    REPO_NAME = "CrawlerAI"  # 替换为你的仓库名
-    RELEASE_TAG = "v1.0"  # 替换为你创建的Release标签
+    REPO_OWNER = "ZehonRyu"
+    REPO_NAME = "CrawlerAI"
+    RELEASE_TAG = "v1.0"
 
     # 确保AI/audio_video目录存在
     Path("AI/audio_video").mkdir(parents=True, exist_ok=True)
