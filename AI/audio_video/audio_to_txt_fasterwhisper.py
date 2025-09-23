@@ -16,10 +16,20 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 COMPUTE_TYPE = "float16" if DEVICE == "cuda" else "int8"  # GPU用float16，CPU用int8
 
 # 使用用户目录作为模型缓存路径，避免权限问题
-MODEL_CACHE_DIR = os.path.join(
-    os.path.expanduser("~"), ".cache", "faster_whisper_models"
+# MODEL_CACHE_DIR = os.path.join(
+#     os.path.expanduser("~"), ".cache", "faster_whisper_models"
+# )
+
+# os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 )
-os.makedirs(MODEL_CACHE_DIR, exist_ok=True)
+MODEL_PATH = os.path.join(PROJECT_ROOT, "AI", "audio_video", "models")
+LOCAL_MODEL_DIR = os.path.join(MODEL_PATH, "models--Systran--faster-whisper-small")
+
+# 确保模型目录存在
+os.makedirs(MODEL_PATH, exist_ok=True)
 
 
 def preprocess_audio(input_path: str) -> str:
@@ -267,13 +277,22 @@ def transcribe_audio(input_path: str) -> str:
     processed_path = preprocess_audio(input_path)
 
     try:
-        # 加载模型，使用用户目录作为缓存路径
-        model = WhisperModel(
-            "small",
-            device=DEVICE,
-            compute_type=COMPUTE_TYPE,
-            download_root=MODEL_CACHE_DIR,  # 使用用户目录避免权限问题
-        )
+        # 检查本地模型是否存在
+        if os.path.exists(LOCAL_MODEL_DIR) and os.listdir(LOCAL_MODEL_DIR):
+            print(f"使用本地模型: {LOCAL_MODEL_DIR}")
+            model = WhisperModel(
+                LOCAL_MODEL_DIR, device=DEVICE, compute_type=COMPUTE_TYPE
+            )
+        else:
+            print("本地模型不存在，将使用在线模型并自动下载")
+            # 确保缓存目录存在
+            os.makedirs(MODEL_PATH, exist_ok=True)
+            model = WhisperModel(
+                "small",
+                device=DEVICE,
+                compute_type=COMPUTE_TYPE,
+                download_root=MODEL_PATH,
+            )
 
         # 判断音频长度
         audio = AudioSegment.from_wav(processed_path)
