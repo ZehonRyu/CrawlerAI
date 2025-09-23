@@ -44,7 +44,6 @@ def main():
 
     Path("AI/audio_video").mkdir(parents=True, exist_ok=True)
 
-    # 下载模型文件
     try:
         download_from_github_release(
             repo_owner=REPO_OWNER,
