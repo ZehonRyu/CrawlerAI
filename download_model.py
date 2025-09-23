@@ -42,7 +42,6 @@ def main():
     REPO_NAME = "CrawlerAI"
     RELEASE_TAG = "v1.0"
 
-    # 确保AI/audio_video目录存在
     Path("AI/audio_video").mkdir(parents=True, exist_ok=True)
 
     # 下载模型文件
