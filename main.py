@@ -291,13 +291,11 @@ async def main(Cconfig: CrawlerConfig) -> None:
     # 1. 执行爬虫
     print("\n" + "=" * 50)
     print("Step 1: Execute crawler program")
-    print("=" * 50)
     await run_crawler_internal(Cconfig)
 
     # 2. 执行数据转化
     print("\n" + "=" * 50)
     print("Step 2: Execute audio to text program")
-    print("=" * 50)
 
     # 查找爬虫生成的文件，将爬虫文件最后生成txt文件
     processed_content = process_crawler_data(Cconfig)
@@ -305,7 +303,6 @@ async def main(Cconfig: CrawlerConfig) -> None:
     # 3. 执行模型构建
     print("\n" + "=" * 50)
     print("Step 3: Execute model building program")
-    print("=" * 50)
 
     if processed_content:
         # 创建临时文件用于模型构建
@@ -329,7 +326,6 @@ async def main(Cconfig: CrawlerConfig) -> None:
     # 4. 清空爬虫生成文件（可选）
     print("\n" + "=" * 50)
     print("Step 4: Clean crawler generated files")
-    print("=" * 50)
     # clean_crawler_data()  # 如果需要在最后也清空数据，取消注释这行
 
 

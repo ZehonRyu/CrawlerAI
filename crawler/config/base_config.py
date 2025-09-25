@@ -86,13 +86,7 @@ DY_SPECIFIED_ID_LIST = [
 KS_SPECIFIED_ID_LIST = ["3xf8enb8dbj6uig", "3x6zz972bchmvqe"]
 
 # 指定B站平台需要爬取的视频bvid列表
-BILI_SPECIFIED_ID_LIST = ["BV1zT4y1j7is"]
-
-# 指定微博平台需要爬取的帖子列表
-WEIBO_SPECIFIED_ID_LIST = [
-    "4982041758140155",
-    # ........................
-]
+BILI_SPECIFIED_ID_LIST = ["BV1bPp8zrE6H"]
 
 # 指定weibo创作者ID列表
 WEIBO_CREATOR_ID_LIST = [
