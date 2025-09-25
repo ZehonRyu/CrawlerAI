@@ -54,16 +54,18 @@ CrawlerAI 是一个综合性的网络爬虫系统，支持多个主流社交媒�
 ## 安装与配置
 
 1. 克隆项目到本地：
-```bash
+
 git clone <项目地址>
 
 2. 安装依赖：
-```bash
+
 pip install -r requirements.txt
 
 3. 配置环境变量：
 在项目根目录创建 .env 文件
 配置必要的API密钥和参数
+
+4. audio_video里面需要配置语音模型，请自行下载，或者使用whisper模型
 
 ## 使用方法
 项目通过配置参数运行，主要参数包括：
