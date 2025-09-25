@@ -184,3 +184,5 @@ AI\audio_video\models/
 *.tar.gz
 *.rar
 *.7z
+
+ffmpeg-7.0.2-essentials_build
