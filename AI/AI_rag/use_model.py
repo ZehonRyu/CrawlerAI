@@ -1,11 +1,11 @@
 # 智能导入处理，兼容不同环境
 try:
     # 尝试使用相对导入（在包内运行时）
-    from .model import UniversalModel
+    from .Ragmodel import UniversalModel
 except ImportError:
     # 如果相对导入失败，使用绝对导入（在动态加载时）
     try:
-        from AI.AI_rag.model import UniversalModel
+        from AI.AI_rag.Ragmodel import UniversalModel
     except ImportError:
         # 最后尝试直接导入
         import os
@@ -21,13 +21,13 @@ except ImportError:
 
         # 如果仍然无法导入，尝试使用相对路径直接导入
         try:
-            from AI.AI_rag.model import UniversalModel
+            from AI.AI_rag.Ragmodel import UniversalModel
         except ImportError:
             # 尝试通过修改后的路径导入
             ai_rag_dir = os.path.dirname(current_dir)
             if ai_rag_dir not in sys.path:
                 sys.path.insert(0, ai_rag_dir)
-            from model import UniversalModel
+            from AI.AI_rag.Ragmodel import UniversalModel
 
 
 def generate_summary(platform):

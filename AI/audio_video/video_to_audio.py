@@ -1,6 +1,6 @@
 import os
-
-from moviepy.editor import VideoFileClip
+import subprocess
+import sys
 
 
 def extract_audio_from_mp4(input_mp4_path: str, output_mp3_path: str) -> None:
@@ -23,26 +23,30 @@ def extract_audio_from_mp4(input_mp4_path: str, output_mp3_path: str) -> None:
     if output_dir:  # 仅当输出目录非空时才创建
         os.makedirs(output_dir, exist_ok=True)
 
-    # 加载视频文件并提取音频
-    video = VideoFileClip(input_mp4_path)
-    audio = video.audio
+    # 构建 FFmpeg 命令
+    ffmpeg_cmd = [
+        "ffmpeg",
+        "-i",
+        input_mp4_path,
+        "-vn",  # 禁用视频流
+        "-acodec",
+        "mp3",  # 音频编码为 MP3
+        "-ab",
+        "192k",  # 音频比特率
+        "-y",  # 覆盖输出文件
+        output_mp3_path,
+    ]
 
-    # 保存为 MP3 格式
-    audio.write_audiofile(output_mp3_path, verbose=False, logger=None)
-
-    # 释放资源
-    audio.close()
-    video.close()
-
-
-if __name__ == "__main__":
-    # 测试代码
     try:
-        print("开始提取音频...")
-        extract_audio_from_mp4(
-            input_mp4_path="F:/Project/CrawlerAI/crawler/data/bilibili/videos/114857860931075/video.mp4",
-            output_mp3_path="F:/Project/CrawlerAI/data/video_fan.mp3",
+        # 执行 FFmpeg 命令
+        result = subprocess.run(
+            ffmpeg_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
         )
-        print("✅ 音频提取成功！输出文件: video_fan.mp3")
-    except Exception as e:
-        print(f"❌ 处理失败: {str(e)}")
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"音频提取失败: {e.stderr}")
+    except FileNotFoundError:
+        raise Exception("未找到 FFmpeg 可执行文件，请确保 FFmpeg 已正确安装并添加到系统路径")

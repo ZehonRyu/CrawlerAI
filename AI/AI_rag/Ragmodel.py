@@ -2,7 +2,6 @@ import os
 
 from dotenv import load_dotenv
 from langchain.chains import ConversationalRetrievalChain
-from langchain.document_loaders import JSONLoader, TextLoader
 from langchain.memory import ConversationBufferMemory
 from langchain.prompts.chat import (
     ChatPromptTemplate,
@@ -10,9 +9,10 @@ from langchain.prompts.chat import (
     SystemMessagePromptTemplate,
 )
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
 from langchain_community.chat_models import ChatTongyi
+from langchain_community.document_loaders import JSONLoader, TextLoader
 from langchain_community.embeddings import DashScopeEmbeddings
+from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 
 try:

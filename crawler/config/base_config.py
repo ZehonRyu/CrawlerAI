@@ -1,6 +1,6 @@
 PLATFORM = "zhihu"
 KEYWORDS = "特斯拉"  # 关键词搜索配置，以英文逗号分隔
-ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/614075115"  # 替换为实际的问题URL
+ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/597875487"  # 替换为实际的问题URL
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
@@ -86,13 +86,7 @@ DY_SPECIFIED_ID_LIST = [
 KS_SPECIFIED_ID_LIST = ["3xf8enb8dbj6uig", "3x6zz972bchmvqe"]
 
 # 指定B站平台需要爬取的视频bvid列表
-BILI_SPECIFIED_ID_LIST = ["BV1bPp8zrE6H"]
-
-# 指定weibo创作者ID列表
-WEIBO_CREATOR_ID_LIST = [
-    "5533390220",
-    # ........................
-]
+BILI_SPECIFIED_ID_LIST = ["BV1nVKRz9Era"]
 
 # 指定贴吧需要爬取的帖子列表
 TIEBA_SPECIFIED_ID_LIST = []
@@ -124,7 +118,6 @@ DY_CREATOR_ID_LIST = [
 BILI_CREATOR_ID_LIST = [
     # "20813884",
     "3546573373966625",
-    "525745532",
     # ........................
 ]
 
@@ -143,7 +136,7 @@ ZHIHU_CREATOR_URL_LIST = [
 
 # 指定知乎需要爬取的帖子ID列表
 ZHIHU_SPECIFIED_ID_LIST = [
-    "https://www.zhihu.com/question/826896610/answer/30975812",  # 回答
+    "https://www.zhihu.com/question/597875487",  # 回答
     # "https://zhuanlan.zhihu.com/p/673461588", # 文章
     # "https://www.zhihu.com/zvideo/1539542068422144000" # 视频
 ]

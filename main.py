@@ -343,7 +343,10 @@ if __name__ == "__main__":
     #     crawlertype="detail"
     # )
 
-    Cconfig = CrawlerConfig(logintype="qrcode ", platform="xhs", crawlertype="detail")
+    # Cconfig = CrawlerConfig(logintype="qrcode ", platform="xhs", crawlertype="detail")
+    Cconfig = CrawlerConfig(
+        logintype="cookie", platform="zhihu", crawlertype="question"
+    )
 
     try:
         asyncio.run(main(Cconfig))

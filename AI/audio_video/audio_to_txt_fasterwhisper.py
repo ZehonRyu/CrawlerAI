@@ -1,7 +1,8 @@
 import os
 import re
 
-import whisper
+# Deleted:import whisper
+from faster_whisper import WhisperModel
 from opencc import OpenCC
 from pydub import AudioSegment
 from pydub.effects import normalize
@@ -69,16 +70,20 @@ def transcribe_audio(input_path: str) -> str:
 
     try:
         print("加载Whisper模型...")
-        model = whisper.load_model("small")
+        # 直接从Hugging Face下载模型（现在可以正常联网了）
+        model = WhisperModel("small", device="cpu", compute_type="int8")
         print("模型加载完成")
 
         # 转录音频
         print("正在进行音频转录...")
-        result = model.transcribe(processed_path, language="zh")
-        print("音频转录完成")
+        segments, info = model.transcribe(processed_path, language="zh")
+        print(f"检测到语言: {info.language}, 置信度: {info.language_probability}")
 
-        # 获取转录文本
-        text = result["text"]
+        # 收集所有转录文本
+        text = ""
+        for segment in segments:
+            text += segment.text
+        print("音频转录完成")
 
         # 后处理文本
         print("正在进行文本后处理...")
@@ -94,7 +99,6 @@ def transcribe_audio(input_path: str) -> str:
         # 确保删除临时WAV文件
         if processed_path != input_path and os.path.exists(processed_path):
             os.remove(processed_path)
-            print(f"已删除临时文件: {processed_path}")
 
 
 if __name__ == "__main__":

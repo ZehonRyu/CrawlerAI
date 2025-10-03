@@ -3,10 +3,10 @@ import os
 
 import tiktoken
 from dotenv import load_dotenv
-from langchain.document_loaders import JSONLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.vectorstores import Chroma
+from langchain_community.document_loaders import JSONLoader, TextLoader
 from langchain_community.embeddings import DashScopeEmbeddings
+from langchain_community.vectorstores import Chroma
 from langchain_core.documents import Document
 
 load_dotenv()
