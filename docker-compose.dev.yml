@@ -1,0 +1,26 @@
+version: '1.0'
+
+services:
+  crawlerai:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      # 挂载主要代码目录
+      - ./AI:/app/AI
+      - ./crawler:/app/crawler
+      - ./frontend:/app/frontend
+      # 挂载主要Python文件
+      - ./app.py:/app/app.py
+      - ./main.py:/app/main.py
+      - ./download_model.py:/app/download_model.py
+      # 挂载数据目录（确保目录存在）
+      - ./data:/app/data
+      - ./browser_data:/app/browser_data
+    environment:
+      - HOST=0.0.0.0
+      - PORT=5000
+      - DEBUG=True
+      - DATA_DIR=/app/data
+      - BROWSER_DATA_DIR=/app/browser_data
+    restart: unless-stopped

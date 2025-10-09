@@ -1,10 +1,10 @@
-# 使用华为云镜像源
-FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim
+# 构建阶段 - 用于安装依赖和编译
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9 AS builder
 
 # 设置工作目录
 WORKDIR /app
 
-# 替换为阿里云的Debian镜像源
+# 替换为阿里云的Debian镜像源以提高下载速度
 RUN echo "deb http://mirrors.aliyun.com/debian/ bullseye main non-free contrib" > /etc/apt/sources.list && \
     echo "deb-src http://mirrors.aliyun.com/debian/ bullseye main non-free contrib" >> /etc/apt/sources.list && \
     echo "deb http://mirrors.aliyun.com/debian-security/ bullseye-security main" >> /etc/apt/sources.list && \
@@ -12,20 +12,45 @@ RUN echo "deb http://mirrors.aliyun.com/debian/ bullseye main non-free contrib" 
     echo "deb http://mirrors.aliyun.com/debian/ bullseye-updates main non-free contrib" >> /etc/apt/sources.list && \
     echo "deb-src http://mirrors.aliyun.com/debian/ bullseye-updates main non-free contrib" >> /etc/apt/sources.list
 
-# 更新包列表并安装系统依赖，包括编译工具
-RUN apt-get update && apt-get install -y \
+# 更新包列表并安装构建依赖（包括编译工具）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     python3-dev \
     build-essential \
-    libffi-dev \
-    ffmpeg \
-    portaudio19-dev \
-    pkg-config \
     git \
-    wget \
-    curl \
-    gnupg \
+    pkg-config \
+    portaudio19-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+# 升级pip
+RUN pip install --upgrade pip
+
+# 复制 requirements.txt 并安装 Python 依赖
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# === 构建阶段结束 ===
+
+# 运行阶段 - 用于最终运行应用
+FROM swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/python:3.9-slim AS runtime
+
+# 设置工作目录
+WORKDIR /app
+
+# 替换为阿里云的Debian镜像源以提高下载速度
+RUN echo "deb http://mirrors.aliyun.com/debian/ bullseye main non-free contrib" > /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.aliyun.com/debian/ bullseye main non-free contrib" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian-security/ bullseye-security main" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.aliyun.com/debian-security/ bullseye-security main" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.aliyun.com/debian/ bullseye-updates main non-free contrib" >> /etc/apt/sources.list && \
+    echo "deb-src http://mirrors.aliyun.com/debian/ bullseye-updates main non-free contrib" >> /etc/apt/sources.list
+
+# 更新包列表并安装运行时系统依赖（不包括编译工具）
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
     libnss3 \
     libnspr4 \
     libatk-bridge2.0-0 \
@@ -39,25 +64,51 @@ RUN apt-get update && apt-get install -y \
     libxss1 \
     libasound2 \
     libatspi2.0-0 \
-    libgtk-3-0 \
+    libgtk-3.0 \
     xvfb \
-    && rm -rf /var/lib/apt/lists/*
+    curl \
+    gnupg \
+    libx11-6 \
+    libxext6 \
+    libxrender1 && \
+    rm -rf /var/lib/apt/lists/*
 
-# 升级pip
-RUN pip install --upgrade pip
+# 从构建阶段复制已安装的Python包
+COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
-# 复制 requirements.txt 并安装 Python 依赖
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# 安装playwright浏览器依赖
+# 使用python -m方式调用playwright命令
+RUN pip install --no-cache-dir playwright
+RUN python -m playwright install-deps
+RUN python -m playwright install chromium
 
-# 安装playwright浏览器
-RUN playwright install chromium
+# 复制应用代码（只复制必要的文件，避免复制data等大目录）
+COPY app.py main.py download_model.py ./
+COPY AI/ ./AI/
+COPY crawler/ ./crawler/
+COPY frontend/ ./frontend/
 
-# 复制项目代码
-COPY . .
+# 创建必要的运行时目录
+RUN mkdir -p data browser_data
 
-# 下载并安装faster-whisper模型（可选，避免运行时下载）
-RUN python -c "from faster_whisper import WhisperModel; model = WhisperModel('small', device='cpu', compute_type='int8')"
+# 下载并安装faster-whisper模型（避免运行时下载）
+# 优化: 只下载模型，不加载模型以减少缓存文件
+RUN python -c "import os; os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'" && \
+    python -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', local_files_only=False, mirror='https://hf-mirror.com')" 2>/dev/null || \
+    python -c "from faster_whisper import WhisperModel; model = WhisperModel('small', device='cpu', compute_type='int8')" 2>/dev/null || \
+    echo "Model download/installation completed"
+
+# === 关键：清理不必要的缓存，保留必需的模型文件 ===
+RUN pip cache purge && \
+    # 清理pip缓存
+    rm -rf /root/.cache/pip && \
+    # 清理临时文件
+    find /root/.cache -type f -name "*.tmp" -delete 2>/dev/null || true && \
+    find /root/.cache -type f -name "*.cache" -delete 2>/dev/null || true && \
+    # 清理不必要的huggingface缓存（保留模型文件）
+    find /root/.cache/huggingface -type f -not -name "*.bin" -not -name "*.txt" -not -name "*.json" -not -name "*.model" -delete 2>/dev/null || true && \
+    # 清理apt缓存
+    rm -rf /var/lib/apt/lists/*
 
 # 暴露端口
 EXPOSE 5000
@@ -66,6 +117,12 @@ EXPOSE 5000
 ENV HOST=0.0.0.0
 ENV PORT=5000
 ENV DEBUG=False
+ENV DATA_DIR=/app/data
+ENV BROWSER_DATA_DIR=/app/browser_data
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5000/ || exit 1
 
 # 启动应用
 CMD ["python", "app.py"]

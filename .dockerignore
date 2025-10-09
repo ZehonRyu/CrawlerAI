@@ -1,14 +1,15 @@
-__pycache__
+# 虚拟环境
+venv/
+env/
+.venv/
+
+# Python相关
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-env/
-venv/
-.venv/
-pip-log.txt
-pip-delete-this-directory.txt
-.tox
+*.so
 .coverage
 .coverage.*
 .cache
@@ -16,22 +17,62 @@ nosetests.xml
 coverage.xml
 *.cover
 *.log
-.git
-.mypy_cache
-.pytest_cache
-.hypothesis
+.git_keep
+
+# 测试相关
+.pytest_cache/
+.coverage
+pytest_cache/
+
+# IDE相关
+.idea/
+.vscode/
+*.swp
+*.swo
 .DS_Store
-.env
-.env.local
-.env.production
-.env.development
-node_modules
-.vscode
-.idea
-*.sqlite
-*.db
-temp_*
-model_*
+Thumbs.db
+
+# 数据文件（重要：这些不应该包含在镜像中）
 data/
 browser_data/
+model_*_model/
+models/
 AI/audio_video/models/
+
+# 日志文件
+*.log
+logs/
+
+# 环境变量文件
+.env
+
+# 大型模型文件
+*.bin
+*.onnx
+*.pt
+*.pth
+*.h5
+*.ckpt
+*.safetensors
+*.gguf
+*.mlmodel
+*.tflite
+faster_whisper_model.zip
+models.zip
+
+# 压缩文件
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.tar
+
+# FFmpeg二进制文件
+ffmpeg-7.0.2-essentials_build
+
+# 临时文件
+temp_*
+*.tmp
+
+# Git文件
+.git/

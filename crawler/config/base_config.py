@@ -1,6 +1,6 @@
 PLATFORM = "zhihu"
 KEYWORDS = "特斯拉"  # 关键词搜索配置，以英文逗号分隔
-ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/597875487"  # 替换为实际的问题URL
+ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/15160476087"  # 替换为实际的问题URL
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
