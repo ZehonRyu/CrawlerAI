@@ -1,6 +1,6 @@
 PLATFORM = "zhihu"
 KEYWORDS = "特斯拉"  # 关键词搜索配置，以英文逗号分隔
-ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/15160476087"  # 替换为实际的问题URL
+ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/614075115"  # 替换为实际的问题URL
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
@@ -29,7 +29,7 @@ IP_PROXY_PROVIDER_NAME = None
 # 设置False会打开一个浏览器
 # 小红书如果一直扫码登录不通过，打开浏览器手动过一下滑动验证码
 # 抖音如果一直提示失败，打开浏览器看下是否扫码登录之后出现了手机号验证，如果出现了手动过一下再试。
-HEADLESS = False
+HEADLESS = True
 
 # 是否保存登录状态
 SAVE_LOGIN_STATE = True
@@ -86,15 +86,9 @@ DY_SPECIFIED_ID_LIST = [
 KS_SPECIFIED_ID_LIST = ["3xf8enb8dbj6uig", "3x6zz972bchmvqe"]
 
 # 指定B站平台需要爬取的视频bvid列表
-BILI_SPECIFIED_ID_LIST = ["BV1nVKRz9Era"]
+BILI_SPECIFIED_ID_LIST = ["BV1Zr4y1D7cf"]
 
-# 指定贴吧需要爬取的帖子列表
 TIEBA_SPECIFIED_ID_LIST = []
-
-# 指定贴吧名称列表，爬取该贴吧下的帖子
-TIEBA_NAME_LIST = [
-    # "盗墓笔记"
-]
 
 # 指定贴吧创作者URL列表
 TIEBA_CREATOR_URL_LIST = [

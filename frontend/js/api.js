@@ -2,8 +2,8 @@
 // 这里应该包含与后端通信的API函数
 
 class ApiClient {
-    // 基础URL - 根据你的后端服务调整
-    static BASE_URL = 'http://localhost:5000/api';
+    // 基础URL - 使用相对路径而不是绝对路径
+    static BASE_URL = '/api';
 
     // 运行爬虫
     static async runCrawler(config) {

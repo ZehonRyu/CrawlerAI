@@ -345,7 +345,10 @@ if __name__ == "__main__":
 
     # Cconfig = CrawlerConfig(logintype="qrcode ", platform="xhs", crawlertype="detail")
     Cconfig = CrawlerConfig(
-        logintype="cookie", platform="zhihu", crawlertype="question"
+        # logintype="cookie", platform="zhihu", crawlertype="question"
+        logintype="cookie",
+        platform="bili",
+        crawlertype="detail",
     )
 
     try:

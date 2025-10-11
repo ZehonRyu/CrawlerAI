@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 
@@ -6,6 +7,14 @@ from faster_whisper import WhisperModel
 from opencc import OpenCC
 from pydub import AudioSegment
 from pydub.effects import normalize
+
+# 设置日志配置 - 使用 force=True 确保配置生效
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    force=True,
+)
+logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,9 +26,9 @@ FFMPEG_PATH = os.path.join(
 # 如果项目中的FFmpeg路径存在，则使用它
 if os.path.exists(FFMPEG_PATH):
     os.environ["PATH"] = FFMPEG_PATH + os.pathsep + os.environ["PATH"]
-    print(f"使用项目内置FFmpeg: {FFMPEG_PATH}")
+    logger.info(f"使用项目内置FFmpeg: {FFMPEG_PATH}")
 else:
-    print("未找到项目内置FFmpeg，使用系统PATH中的FFmpeg")
+    logger.info("未找到项目内置FFmpeg，使用系统PATH中的FFmpeg")
 
 
 def preprocess_audio(input_path: str) -> str:
@@ -49,7 +58,7 @@ def preprocess_audio(input_path: str) -> str:
         )
         return temp_path
     except Exception as e:
-        print(f"音频预处理失败: {e}")
+        logger.error(f"音频预处理失败: {e}")
         return input_path  # 失败时返回原文件
 
 
@@ -65,35 +74,74 @@ def transcribe_audio(input_path: str) -> str:
 
     # 检查预处理后的文件
     if not os.path.exists(processed_path):
-        print(f"错误: 预处理后的音频文件未生成: {processed_path}")
+        logger.error(f"错误: 预处理后的音频文件未生成: {processed_path}")
         return ""
 
     try:
-        print("加载Whisper模型...")
+        logger.info("加载Whisper模型...")
         # 直接从Hugging Face下载模型（现在可以正常联网了）
-        model = WhisperModel("small", device="cpu", compute_type="int8")
-        print("模型加载完成")
+        # model = WhisperModel("small", device="cpu", compute_type="int8")
+        # model = WhisperModel("/app/AI/audio_video/models--Systran--faster-whisper-small/snapshots/536b0662742c02347bc0e980a01041f333bce120", device="cpu", compute_type="int8")
+
+        local_model_path = os.path.join(
+            PROJECT_ROOT,
+            "AI",
+            "audio_video",
+            "models",
+            "models--Systran--faster-whisper-small",
+            "snapshots",
+            "536b0662742c02347bc0e980a01041f333bce120",
+        )
+        logger.info(f"尝试加载模型路径: {local_model_path}")
+        logger.info(f"模型路径是否存在: {os.path.exists(local_model_path)}")
+
+        if os.path.exists(local_model_path):
+            logger.info("模型目录中的文件:")
+            try:
+                for file in os.listdir(local_model_path):
+                    logger.info(f"  {file}")
+            except Exception as e:
+                logger.error(f"无法列出模型目录内容: {e}")
+        else:
+            logger.error("模型路径不存在！")
+            return ""
+
+        # 尝试多种方式加载模型
+        logger.info("尝试使用 local_files_only=True 加载模型...")
+        try:
+            model = WhisperModel(
+                local_model_path,
+                device="cpu",
+                compute_type="int8",
+                local_files_only=True,
+            )
+        except Exception as e:
+            logger.warning(f"使用 local_files_only=True 失败: {e}")
+            logger.info("尝试不使用 local_files_only 参数加载模型...")
+            model = WhisperModel(local_model_path, device="cpu", compute_type="int8")
+
+        logger.info("模型加载完成")
 
         # 转录音频
-        print("正在进行音频转录...")
+        logger.info("正在进行音频转录...")
         segments, info = model.transcribe(processed_path, language="zh")
-        print(f"检测到语言: {info.language}, 置信度: {info.language_probability}")
+        logger.info(f"检测到语言: {info.language}, 置信度: {info.language_probability}")
 
         # 收集所有转录文本
         text = ""
         for segment in segments:
             text += segment.text
-        print("音频转录完成")
+        logger.info("音频转录完成")
 
         # 后处理文本
-        print("正在进行文本后处理...")
+        logger.info("正在进行文本后处理...")
         return text
 
     except Exception as e:
-        print(f"转录过程中发生错误: {e}")
+        logger.error(f"转录过程中发生错误: {e}")
         import traceback
 
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         return ""
     finally:
         # 确保删除临时WAV文件

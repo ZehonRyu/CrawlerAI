@@ -47,7 +47,7 @@ RUN echo "deb http://mirrors.aliyun.com/debian/ bullseye main non-free contrib" 
     echo "deb http://mirrors.aliyun.com/debian/ bullseye-updates main non-free contrib" >> /etc/apt/sources.list && \
     echo "deb-src http://mirrors.aliyun.com/debian/ bullseye-updates main non-free contrib" >> /etc/apt/sources.list
 
-# 更新包列表并安装运行时系统依赖（不包括编译工具）
+# 更新包列表并安装运行时系统依赖（包括JavaScript运行时和图形界面依赖）
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     ffmpeg \
@@ -73,6 +73,11 @@ RUN apt-get update && \
     libxrender1 && \
     rm -rf /var/lib/apt/lists/*
 
+# 安装Node.js作为JavaScript运行时
+RUN curl -fsSL https://deb.nodesource.com/setup_16.x | bash - && \
+    apt-get install -y --no-install-recommends nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
 # 从构建阶段复制已安装的Python包
 COPY --from=builder /usr/local/lib/python3.9/site-packages /usr/local/lib/python3.9/site-packages
 
@@ -83,11 +88,11 @@ RUN python -m playwright install-deps
 RUN python -m playwright install chromium
 
 # 复制应用代码（只复制必要的文件，避免复制data等大目录）
-COPY app.py main.py download_model.py ./
+COPY app.py main.py downloaw.py ./
 COPY AI/ ./AI/
 COPY crawler/ ./crawler/
 COPY frontend/ ./frontend/
-
+COPY AI/audio_video/models/ /app/AI/audio_video/models/
 # 创建必要的运行时目录
 RUN mkdir -p data browser_data
 
@@ -97,7 +102,7 @@ RUN python -c "import os; os.environ['HF_ENDPOINT'] = 'https://hf-mirror.com'" &
     python -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-small', local_files_only=False, mirror='https://hf-mirror.com')" 2>/dev/null || \
     python -c "from faster_whisper import WhisperModel; model = WhisperModel('small', device='cpu', compute_type='int8')" 2>/dev/null || \
     echo "Model download/installation completed"
-
+RUN apt-get update && apt-get install -y xvfb xauth
 # === 关键：清理不必要的缓存，保留必需的模型文件 ===
 RUN pip cache purge && \
     # 清理pip缓存
@@ -119,10 +124,11 @@ ENV PORT=5000
 ENV DEBUG=False
 ENV DATA_DIR=/app/data
 ENV BROWSER_DATA_DIR=/app/browser_data
+ENV HEADLESS=true
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:5000/ || exit 1
 
-# 启动应用
-CMD ["python", "app.py"]
+# 启动应用（使用xvfb-run提供更可靠的虚拟显示环境）
+CMD ["xvfb-run", "-a", "python", "app.py"]

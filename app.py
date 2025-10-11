@@ -316,10 +316,30 @@ def test_api():
     return jsonify({"message": "API 正常工作!"})
 
 
+# if __name__ == "__main__":
+#     # 使用环境变量配置应用
+#     try:
+#         app.run(debug=DEBUG, port=PORT, host=HOST, threaded=True)
+#     except SystemExit:
+#         logger.info("应用正常退出")
+#     except Exception as e:
+#         logger.error(f"应用运行出错: {str(e)}")
+
+
 if __name__ == "__main__":
     # 使用环境变量配置应用
     try:
-        app.run(debug=DEBUG, port=PORT, host=HOST, threaded=True)
+        # 确定要排除监控的文件
+        excluded_files = [
+            os.path.join(
+                os.path.dirname(__file__), "crawler", "config", "base_config.py"
+            )
+        ]
+
+        # 启动应用，排除特定文件的监控
+        app.run(
+            debug=DEBUG, port=PORT, host=HOST, threaded=True, extra_files=excluded_files
+        )
     except SystemExit:
         logger.info("应用正常退出")
     except Exception as e:
