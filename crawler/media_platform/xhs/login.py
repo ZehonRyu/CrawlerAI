@@ -183,6 +183,8 @@ class XiaoHongShuLogin(AbstractLogin):
         no_logged_in_session = cookie_dict.get("web_session")
 
         # show login qrcode
+        # 同时保存二维码数据到全局存储（如果需要的话）
+
         # fix issue #12
         # we need to use partial function to call show_qrcode function and run in executor
         # then current asyncio event loop will not be blocked
@@ -226,3 +228,36 @@ class XiaoHongShuLogin(AbstractLogin):
                     }
                 ]
             )
+
+    async def get_qr_code_data(self):
+        """获取二维码数据供Web界面显示"""
+        utils.logger.info(
+            "[XiaoHongShuLogin.get_qr_code_data] Getting qrcode data for web interface ..."
+        )
+        qrcode_img_selector = "xpath=//img[@class='qrcode-img']"
+        # find login qrcode
+        base64_qrcode_img = await utils.find_login_qrcode(
+            self.context_page, selector=qrcode_img_selector
+        )
+
+        # 如果没有找到二维码，尝试点击登录按钮后再获取
+        if not base64_qrcode_img:
+            utils.logger.info(
+                "[XiaoHongShuLogin.get_qr_code_data] have not found qrcode, trying to click login button ..."
+            )
+            # 如果没有自动弹出登录对话框，手动点击登录按钮
+            await asyncio.sleep(0.5)
+            login_button_ele = self.context_page.locator(
+                "xpath=//*[@id='app']/div[1]/div[2]/div[1]/ul/div[1]/button"
+            )
+            await login_button_ele.click()
+            base64_qrcode_img = await utils.find_login_qrcode(
+                self.context_page, selector=qrcode_img_selector
+            )
+
+        if not base64_qrcode_img:
+            utils.logger.info(
+                "[XiaoHongShuLogin.get_qr_code_data] failed to get qrcode, please check ...."
+            )
+            return None
+        return base64_qrcode_img

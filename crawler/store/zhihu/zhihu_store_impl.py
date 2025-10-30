@@ -9,7 +9,7 @@ import aiofiles
 import config
 from base.base_crawler import AbstractStore
 from tools import utils, words
-from var import crawler_type_var
+from var import crawler_type_var, task_id_var
 
 
 def calculate_number_of_files(file_store_path: str) -> int:
@@ -27,6 +27,7 @@ def calculate_number_of_files(file_store_path: str) -> int:
                 [
                     int(file_name.split("_")[0])
                     for file_name in os.listdir(file_store_path)
+                    if file_name.split("_")[0].isdigit()
                 ]
             )
             + 1
@@ -177,11 +178,16 @@ class ZhihuDbStoreImplement(AbstractStore):
 
 
 class ZhihuJsonStoreImplement(AbstractStore):
-    json_store_path: str = "data/zhihu/json"
-    words_store_path: str = "data/zhihu/words"
-    lock = asyncio.Lock()
-    file_count: int = calculate_number_of_files(json_store_path)
-    WordCloud = words.AsyncWordCloudGenerator()
+    def __init__(self):
+        # 支持多用户环境，使用配置中的数据目录
+        import config
+
+        base_data_dir = getattr(config, "DATA_DIR", "data")
+        self.json_store_path = f"{base_data_dir}/zhihu/json"
+        self.words_store_path = f"{base_data_dir}/zhihu/words"
+        self.lock = asyncio.Lock()
+        self.file_count = calculate_number_of_files(self.json_store_path)
+        self.WordCloud = words.AsyncWordCloudGenerator()
 
     def make_save_file_name(self, store_type: str):
         """
@@ -190,10 +196,33 @@ class ZhihuJsonStoreImplement(AbstractStore):
             store_type: Save type contains content and comments(contents | comments)
         Returns:
         """
+        # 获取任务ID
+        task_id = task_id_var.get() or os.environ.get("CRAWLER_TASK_ID", "default")
+        crawler_type = crawler_type_var.get() or config.CRAWLER_TYPE or "question"
+        current_date = utils.get_current_date()
+
+        print(
+            f"make_save_file_name - Task ID: '{task_id}' (type: {type(task_id)})"
+        )  # 添加调试信息
+        print(
+            f"make_save_file_name - Crawler type: '{crawler_type}' (type: {type(crawler_type)})"
+        )  # 添加调试信息
+        print(
+            f"make_save_file_name - Current date: '{current_date}' (type: {type(current_date)})"
+        )  # 添加调试信息
+
+        # 确保所有变量都不是None
+        if task_id is None:
+            task_id = "default"
+        if crawler_type is None:
+            crawler_type = "question"
+
+        file_name = f"{crawler_type}_{store_type}_{current_date}_{task_id}.json"
+        print(f"make_save_file_name - Final file name: {file_name}")  # 添加调试信息
 
         return (
-            f"{self.json_store_path}/{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}.json",
-            f"{self.words_store_path}/{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}",
+            f"{self.json_store_path}/{file_name}",
+            f"{self.words_store_path}/{crawler_type}_{store_type}_{current_date}_{task_id}",
         )
 
     async def save_data_to_json(self, save_item: Dict, store_type: str):

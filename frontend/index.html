@@ -34,7 +34,50 @@
         <div class="section">
             <button id="run-btn" class="btn-run" disabled>运行爬虫和生成模型</button>
             <div id="run-status" class="status status-info hidden"></div>
+
+            <!-- 二维码显示区域 -->
+            <div id="qrcode-section" class="section hidden">
+                <div class="section-title">扫码登录</div>
+                <p>请使用手机扫描下方二维码进行登录：</p>
+                <div id="qrcode-container">
+                    <img id="qrcode-image" src="" alt="二维码登录" style="display: none;">
+                </div>
+                <p id="qrcode-message"></p>
+            </div>
+
+            <!-- 文件下载按钮 -->
+            <div id="download-section" class="section hidden">
+                <div class="section-title">下载结果</div>
+                <button id="download-btn" class="btn-download">下载爬取结果</button>
+            </div>
+
+            <!-- 生成模型按钮 -->
+            <div id="build-model-section" class="section hidden">
+                <div class="section-title">模型构建</div>
+                <button id="build-model-btn" class="btn-build-model">生成模型</button>
+                <div id="build-model-status" class="status status-info hidden"></div>
+            </div>
         </div>
+
+        <!-- 文件上传部分 -->
+        <div class="section">
+            <div class="section-title">直接上传JSON构建模型</div>
+            <div class="form-group">
+                <label for="platform-type">平台类型:</label>
+                <select id="platform-type">
+                    <option value="zhihu">知乎</option>
+                    <option value="bili">B站</option>
+                    <option value="xhs">小红书</option>
+                    <option value="default">默认</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <input type="file" id="model-file" accept=".json">
+                <button id="upload-model-btn" class="btn-run">上传并构建模型</button>
+            </div>
+            <div id="upload-model-status" class="status status-info hidden"></div>
+        </div>
+
 <!-- 结果展示部分 -->
 <div id="result-section" class="section hidden">
     <div class="section-title">处理结果</div>
@@ -54,7 +97,6 @@
     </div>
 </div>
 
-    <script src="js/api.js"></script>
-    <script src="js/main.js"></script>
+    <script src="js/main.js" type="module"></script>
 </body>
 </html>

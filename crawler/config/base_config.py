@@ -1,6 +1,6 @@
 PLATFORM = "zhihu"
 KEYWORDS = "特斯拉"  # 关键词搜索配置，以英文逗号分隔
-ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/614075115"  # 替换为实际的问题URL
+ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/597875487"  # 替换为实际的问题URL
 LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
@@ -72,7 +72,7 @@ ENABLE_GET_SUB_COMMENTS = False
 
 # 指定小红书需要爬虫的笔记URL列表, 目前要携带xsec_token和xsec_source参数
 XHS_SPECIFIED_NOTE_URL_LIST = [
-    "https://www.xiaohongshu.com/explore/68b2b5f0000000001d021fd4?xsec_token=ABmmYw5dM60HwNpN_CnD67XP4Jw8LxFCh_e9JToLD-NSQ=&xsec_source=pc_feed&source=404"
+    "https://www.xiaohongshu.com/explore/63eae198000000000800f19d?xsec_token=ABPtpE4YHbO9NzGZVUAyIIIo0xsJVRggpPh9lgG4fjH6c=&xsec_source=pc_feed"
 ]
 
 # 指定抖音需要爬取的ID列表
@@ -169,3 +169,10 @@ MIN_LIKE_COUNT = 1  # 最小点赞量
 
 # 音频存储路径
 AUDIO_STORE_DIR = "data/audios"
+
+# 多用户支持配置
+import os
+
+WORK_DIR = os.getenv("CRAWLER_WORK_DIR", ".")
+DATA_DIR = f"{WORK_DIR}/data" if WORK_DIR != "." else "data"
+TRANSMIT_DIR = f"{WORK_DIR}/transmit_data" if WORK_DIR != "." else "transmit_data"

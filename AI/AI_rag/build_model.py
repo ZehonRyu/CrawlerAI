@@ -149,14 +149,23 @@ def create_vector_db(documents, persist_dir: str):
 
 
 def build_and_save_model(
-    data_path: str, model_name: str = "zhihu_model", model_type: str = "zhihu_model"
+    data_path: str,
+    model_name: str = "zhihu_model",
+    model_type: str = "zhihu_model",
+    session_id: str = None,
 ):
     """构建并保存问答模型"""
-    # 创建模型目录
-    model_dir = f"model_{model_name}"
+    # 创建模型目录，如果提供了session_id，则使用会话特定的目录结构
+    if session_id:
+        model_dir = f"sessions/{session_id}/model_{model_name}"
+    else:
+        model_dir = f"model_{model_name}"
+
     os.makedirs(model_dir, exist_ok=True)
 
     print(f"🛠️ 开始构建模型: {model_name}")
+    if session_id:
+        print(f"会话ID: {session_id}")
 
     # 1. 加载文档
     print("🔍 加载文档...")

@@ -18,8 +18,47 @@ libs_path = os.path.join(crawler_root, "libs")
 if libs_path not in sys.path:
     sys.path.insert(0, libs_path)
 
+# 在crawler_main中也设置任务ID
+try:
+    from var import task_id_var
+except ImportError:
+    # 如果相对导入失败，尝试直接导入
+    import var
+
+    task_id_var = var.task_id_var
+
+task_id_from_env = os.environ.get("CRAWLER_TASK_ID")
+print(
+    f"Task ID from environment: '{task_id_from_env}' (type: {type(task_id_from_env)})"
+)
+if task_id_from_env and not task_id_var.get():
+    task_id_var.set(task_id_from_env)
+    print(f"Crawler main set task ID from environment: {task_id_from_env}")
+elif task_id_var.get():
+    print(f"Crawler main task ID already set: {task_id_var.get()}")
+else:
+    print("No task ID available in crawler main")
+    # 设置默认任务ID
+    if not task_id_var.get():
+        default_task_id = "default_task_id"
+        task_id_var.set(default_task_id)
+        print(f"Set default task ID: {default_task_id}")
+
+# 尝试导入配置模块
+try:
+    import config
+except ImportError:
+    # 如果直接导入失败，尝试相对导入
+    try:
+        from . import config
+    except ImportError:
+        # 最后的备选方案
+        config_path = os.path.join(crawler_root, "config")
+        if config_path not in sys.path:
+            sys.path.insert(0, config_path)
+        import base_config as config
+
 import cmd_arg
-import config
 import db
 from base.base_crawler import AbstractCrawler
 from media_platform.bilibili import BilibiliCrawler
@@ -52,73 +91,70 @@ class CrawlerFactory:
         return crawler_class()
 
 
-async def run_single_test(login_type: str, platform: str, crawler_type: str):
-    """运行单个测试组合"""
-    print(
-        f"\n=== 测试组合: login_type={login_type}, platform={platform}, crawler_type={crawler_type} ==="
-    )
-
-    try:
-        # 设置配置
-        config.LOGIN_TYPE = login_type
-        config.PLATFORM = platform
-        config.CRAWLER_TYPE = crawler_type
-
-        # init db
-        if config.SAVE_DATA_OPTION == "db":
-            await db.init_db()
-
-        crawler = CrawlerFactory.create_crawler(platform=config.PLATFORM)
-        await crawler.start()
-
-        if config.SAVE_DATA_OPTION == "db":
-            await db.close()
-
-        print(f"✓ 完成: {login_type}-{platform}-{crawler_type}")
-
-    except Exception as e:
-        print(f"✗ 错误: {login_type}-{platform}-{crawler_type}, 错误信息: {e}")
-        # 确保数据库连接关闭
-        if config.SAVE_DATA_OPTION == "db":
-            try:
-                await db.close()
-            except:
-                pass
-
-
-async def test_all_combinations():
-    """测试所有组合"""
-    # 使用你在 #selectedCode 中定义的列表
-    login_type_list = ["cookie"]
-    platform_list = ["bili", "zhihu"]
-    crawler_type_list = ["search", "detail", "creator", "question", "creator_audio"]
-
-    # 生成所有组合
-    combinations = list(
-        itertools.product(login_type_list, platform_list, crawler_type_list)
-    )
-
-    print(f"总共需要测试 {len(combinations)} 个组合")
-
-    # 逐一测试
-    for i, (login_type, platform, crawler_type) in enumerate(combinations, 1):
-        print(f"\n[{i}/{len(combinations)}] 开始测试...")
-        await run_single_test(login_type, platform, crawler_type)
-        # 可选：添加延迟避免请求过于频繁
-        # await asyncio.sleep(2)
-
-    print(f"\n=== 所有测试完成 ===")
-
-
 async def main(
-    logintype: str = "cookie", platform: str = "zhihu", crawlertype: str = "question"
+    login_type: str,
+    platform: str,
+    crawler_type: str,
 ):
-    # parse cmd
-    await cmd_arg.parse_cmd()
-    # 如果你只想运行原来的单个测试，可以注释掉上面一行，取消注释下面几行
-    config.LOGIN_TYPE = logintype
+    """
+    爬虫主函数，根据参数运行不同的爬虫实现
+    Args:
+        login_type: 登类型
+        platform: 平台名称
+        crawler_type: 爬虫类型
+
+    Returns:
+    """
+
+    # 检查是否有会话特定的配置
+    session_config_path = os.environ.get("CRAWLER_SESSION_CONFIG")
+    if session_config_path and os.path.exists(session_config_path):
+        print(f"Using session-specific config: {session_config_path}")
+        # 动态替换配置模块
+        import importlib.util
+        import sys
+
+        # 从会话特定的配置文件加载配置
+        spec = importlib.util.spec_from_file_location(
+            "session_config", session_config_path
+        )
+        session_config = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(session_config)
+
+        # 更新当前配置模块的属性
+        import config
+
+        for attr in dir(session_config):
+            if not attr.startswith("__"):
+                setattr(config, attr, getattr(session_config, attr))
+        print(f"Updated config ZHIHU_QUESTION_URL: {config.ZHIHU_QUESTION_URL}")
+    else:
+        print("Using default config")
+
+    # 确保任务ID已设置
+    from var import task_id_var
+
+    task_id_from_env = os.environ.get("CRAWLER_TASK_ID")
+    current_task_id = task_id_var.get()
+    print(f"Main function - Task ID from environment: '{task_id_from_env}'")
+    print(f"Main function - Current task ID in var: '{current_task_id}'")
+
+    if task_id_from_env and not current_task_id:
+        task_id_var.set(task_id_from_env)
+        print(f"Main function set task ID from environment: {task_id_from_env}")
+
+    print(f"Main function - Final Task ID: {task_id_var.get()}")
+    print(f"Main function - Crawler type: {crawler_type}")
+
+    # 设置爬虫类型
+    from var import crawler_type_var
+
+    crawler_type_var.set(crawler_type)
+
+    # 设置配置
+    config.LOGIN_TYPE = login_type
     config.PLATFORM = platform
-    config.CRAWLER_TYPE = crawlertype
+    config.CRAWLER_TYPE = crawler_type
 
     # init db
     if config.SAVE_DATA_OPTION == "db":

@@ -4,10 +4,17 @@ from urllib.parse import urlparse
 
 import aiofiles
 import aiomysql
-import config
-from async_db import AsyncMysqlDB
 from tools import utils
 from var import db_conn_pool_var, media_crawler_db_var
+
+from crawler.async_db import AsyncMysqlDB
+
+# 动态导入配置模块
+try:
+    import config
+except ImportError:
+    # 如果直接导入失败，尝试相对导入
+    from . import config
 
 
 async def init_mediacrawler_db():

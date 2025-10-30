@@ -37,13 +37,18 @@ DASHSCOPE_API_KEY = os.environ["OPENAI_API_KEY"]
 class UniversalModel(BaseModel):
     """通用模型类，支持多种数据源"""
 
-    def __init__(self, model_name):
+    def __init__(self, model_name, model_path=None):
         """
         加载通用模型
         :param model_name: 模型名称（对应文件夹）
+        :param model_path: 模型路径（可选，用于指定自定义路径）
         """
         super().__init__(model_name)
-        if model_name.startswith("model_"):
+
+        # 如果提供了model_path，则使用它，否则使用默认路径
+        if model_path:
+            model_dir = model_path
+        elif model_name.startswith("model_"):
             model_dir = model_name
         else:
             model_dir = f"model_{model_name}"
@@ -52,7 +57,7 @@ class UniversalModel(BaseModel):
         if not os.path.exists(model_dir):
             raise FileNotFoundError(f"模型目录 {model_dir} 不存在，请先构建模型")
 
-        print(f"加载模型: {model_name}")
+        print(f"加载模型: {model_name} from {model_dir}")
 
         # 1. 加载向量数据库
         embedding = DashScopeEmbeddings(

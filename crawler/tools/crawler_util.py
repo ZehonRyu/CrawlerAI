@@ -14,35 +14,6 @@ from playwright.async_api import Cookie, Page
 from . import utils
 
 
-async def find_login_qrcode(page: Page, selector: str) -> str:
-    """find login qrcode image from target selector"""
-    try:
-        elements = await page.wait_for_selector(
-            selector=selector,
-        )
-        login_qrcode_img = str(await elements.get_property("src"))  # type: ignore
-        if "http://" in login_qrcode_img or "https://" in login_qrcode_img:
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                utils.logger.info(
-                    f"[find_login_qrcode] get qrcode by url:{login_qrcode_img}"
-                )
-                resp = await client.get(
-                    login_qrcode_img, headers={"User-Agent": get_user_agent()}
-                )
-                if resp.status_code == 200:
-                    image_data = resp.content
-                    base64_image = base64.b64encode(image_data).decode("utf-8")
-                    return base64_image
-                raise Exception(
-                    f"fetch login image url failed, response message:{resp.text}"
-                )
-        return login_qrcode_img
-
-    except Exception as e:
-        print(e)
-        return ""
-
-
 async def find_qrcode_img_from_canvas(page: Page, canvas_selector: str) -> str:
     """
     find qrcode image from canvas element
@@ -54,14 +25,25 @@ async def find_qrcode_img_from_canvas(page: Page, canvas_selector: str) -> str:
 
     """
 
+    utils.logger.info(f"[find_qrcode_img_from_canvas] 开始查找元素: {canvas_selector}")
+    utils.logger.info(f"[find_qrcode_img_from_canvas] 当前页面URL: {page.url}")
+
     # 等待Canvas元素加载完成
-    canvas = await page.wait_for_selector(canvas_selector)
+    utils.logger.info(f"[find_qrcode_img_from_canvas] 设置超时时间为60000ms")
+    canvas = await page.wait_for_selector(canvas_selector, timeout=60000)
+
+    utils.logger.info(f"[find_qrcode_img_from_canvas] 成功找到元素")
 
     # 截取Canvas元素的截图
     screenshot = await canvas.screenshot()
 
+    utils.logger.info(f"[find_qrcode_img_from_canvas] 成功截图，大小: {len(screenshot)} bytes")
+
     # 将截图转换为base64格式
     base64_image = base64.b64encode(screenshot).decode("utf-8")
+    utils.logger.info(
+        f"[find_qrcode_img_from_canvas] 转换为base64，长度: {len(base64_image)}"
+    )
     return base64_image
 
 

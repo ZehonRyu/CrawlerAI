@@ -40,6 +40,14 @@ class ZhihuCrawler(AbstractCrawler):
     browser_context: BrowserContext
 
     def __init__(self) -> None:
+        # 检查初始化时的任务ID
+        from var import crawler_type_var, task_id_var
+
+        task_id = task_id_var.get()
+        crawler_type = crawler_type_var.get()
+        print(f"ZhihuCrawler.__init__ - Task ID: {task_id}")
+        print(f"ZhihuCrawler.__init__ - Crawler type: {crawler_type}")
+
         self.index_url = "https://www.zhihu.com"
         # self.user_agent = utils.get_user_agent()
         self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
@@ -51,6 +59,15 @@ class ZhihuCrawler(AbstractCrawler):
         Returns:
 
         """
+        # 检查任务ID和爬虫类型
+        from var import crawler_type_var, task_id_var
+
+        task_id = task_id_var.get()
+        crawler_type = crawler_type_var.get()
+        print(f"ZhihuCrawler start - Task ID: {task_id}")
+        print(f"ZhihuCrawler start - Crawler type: {crawler_type}")
+        print(f"ZhihuCrawler start - Config crawler type: {config.CRAWLER_TYPE}")
+
         playwright_proxy_format, httpx_proxy_format = None, None
         if config.ENABLE_IP_PROXY:
             ip_proxy_pool = await create_ip_pool(
@@ -77,26 +94,62 @@ class ZhihuCrawler(AbstractCrawler):
             await self.browser_context.add_init_script(path=stealth_path)
 
             self.context_page = await self.browser_context.new_page()
-            await self.context_page.goto(self.index_url, wait_until="domcontentloaded")
+            # await self.context_page.goto(self.index_url, wait_until="domcontentloaded")
+            await self.context_page.goto(self.index_url, wait_until="networkidle")
+            # 增加额外等待时间确保页面完全加载
+            await asyncio.sleep(5)
 
             # Create a client to interact with the zhihu website.
             self.zhihu_client = await self.create_zhihu_client(httpx_proxy_format)
-            if not await self.zhihu_client.pong():  # 检测是否登录成功，如果失败，则进行登录
-                login_obj = ZhiHuLogin(
-                    login_type=config.LOGIN_TYPE,
-                    login_phone="",  # input your phone number
-                    browser_context=self.browser_context,
-                    context_page=self.context_page,
-                    cookie_str=config.COOKIES,
+
+            utils.logger.info(f"[ZhihuCrawler.start] 当前登录类型: {config.LOGIN_TYPE}")
+
+            # 修改此处：无论是否已登录，只要配置为二维码登录就显示二维码
+            try:
+                if config.LOGIN_TYPE == "qrcode":
+                    utils.logger.info("[ZhihuCrawler.start] 强制执行二维码登录流程")
+                    login_obj = ZhiHuLogin(
+                        login_type=config.LOGIN_TYPE,
+                        login_phone="",  # input your phone number
+                        browser_context=self.browser_context,
+                        context_page=self.context_page,
+                        cookie_str=config.COOKIES,
+                    )
+                    await login_obj.begin()
+                    await self.zhihu_client.update_cookies(
+                        browser_context=self.browser_context
+                    )
+                else:
+                    utils.logger.info("[ZhihuCrawler.start] 开始检查登录状态...")
+                    login_result = await self.zhihu_client.pong()  # 检测是否登录成功，如果失败，则进行登录
+                    utils.logger.info(f"[ZhihuCrawler.start] 登录检查结果: {login_result}")
+                    if not login_result:
+                        utils.logger.info("[ZhihuCrawler.start] 需要重新登录，将调用登录流程...")
+                        login_obj = ZhiHuLogin(
+                            login_type=config.LOGIN_TYPE,
+                            login_phone="",  # input your phone number
+                            browser_context=self.browser_context,
+                            context_page=self.context_page,
+                            cookie_str=config.COOKIES,
+                        )
+                        await login_obj.begin()
+                        await self.zhihu_client.update_cookies(
+                            browser_context=self.browser_context
+                        )
+                    else:
+                        utils.logger.info("[ZhihuCrawler.start] 已经登录，无需重新登录")
+            except Exception as e:
+                utils.logger.error(f"[ZhihuCrawler.start] 登录阶段出现异常: {e}")
+                import traceback
+
+                utils.logger.error(
+                    f"[ZhihuCrawler.start] 登录阶段异常追踪: {traceback.format_exc()}"
                 )
-                await login_obj.begin()
-                await self.zhihu_client.update_cookies(
-                    browser_context=self.browser_context
-                )
+                raise
 
             # 知乎的搜索接口需要打开搜索页面之后cookies才能访问API，单独的首页不行
             utils.logger.info(
-                "[ZhihuCrawler.start] Zhihu跳转到搜索页面获取搜索页面的Cookies，该过程需要5秒左右"
+                f"[ZhihuCrawler.start] Zhihu跳转到搜索页面获取搜索页面的Cookies，该过程需要5秒左右,login_type={config.LOGIN_TYPE}"
             )
             await self.context_page.goto(
                 f"{self.index_url}/search?q=python&search_source=Guess&utm_content=search_hot&type=content"
@@ -104,20 +157,47 @@ class ZhihuCrawler(AbstractCrawler):
             await asyncio.sleep(5)
             await self.zhihu_client.update_cookies(browser_context=self.browser_context)
 
-            crawler_type_var.set(config.CRAWLER_TYPE)
-            if config.CRAWLER_TYPE == "search":
-                # Search for notes and retrieve their comment information.
-                await self.search()
-            elif config.CRAWLER_TYPE == "detail":
-                # Get the information and comments of the specified post
-                await self.get_specified_notes()
-            elif config.CRAWLER_TYPE == "creator":
-                # Get creator's information and their notes and comments
-                await self.get_creators_and_notes()
-            elif config.CRAWLER_TYPE == "question":
-                await self.get_question_and_notes()
-            else:
-                pass
+            # 确保爬虫类型被正确设置
+            if not crawler_type_var.get():
+                crawler_type_var.set(config.CRAWLER_TYPE)
+
+            utils.logger.info(f"[ZhihuCrawler.start] 当前配置的爬虫类型: {config.CRAWLER_TYPE}")
+            utils.logger.info(
+                f"[ZhihuCrawler.start] 当前变量中的爬虫类型: {crawler_type_var.get()}"
+            )
+
+            # 执行爬取任务
+            try:
+                utils.logger.info("[ZhihuCrawler.start] 开始执行爬取任务...")
+                if config.CRAWLER_TYPE == "search":
+                    # Search for notes and retrieve their comment information.
+                    utils.logger.info("[ZhihuCrawler.start] 执行搜索任务")
+                    await self.search()
+                elif config.CRAWLER_TYPE == "detail":
+                    # Get the information and comments of the specified post
+                    utils.logger.info("[ZhihuCrawler.start] 执行详情任务")
+                    await self.get_specified_notes()
+                elif config.CRAWLER_TYPE == "creator":
+                    # Get creator's information and their notes and comments
+                    utils.logger.info("[ZhihuCrawler.start] 执行创作者任务")
+                    await self.get_creators_and_notes()
+                elif config.CRAWLER_TYPE == "question" or crawler_type == "question":
+                    utils.logger.info("[ZhihuCrawler.start] 执行问题回答任务")
+                    await self.get_question_and_notes()
+                else:
+                    utils.logger.warning(
+                        f"[ZhihuCrawler.start] 未知的爬虫类型: {config.CRAWLER_TYPE}，使用默认的search类型"
+                    )
+                    await self.search()
+                utils.logger.info("[ZhihuCrawler.start] 爬取任务执行完成")
+            except Exception as e:
+                utils.logger.error(f"[ZhihuCrawler.start] 爬取阶段出现异常: {e}")
+                import traceback
+
+                utils.logger.error(
+                    f"[ZhihuCrawler.start] 爬取阶段异常追踪: {traceback.format_exc()}"
+                )
+                raise
 
             utils.logger.info("[ZhihuCrawler.start] Zhihu Crawler finished ...")
 
@@ -409,7 +489,7 @@ class ZhihuCrawler(AbstractCrawler):
             browser_context = await chromium.launch_persistent_context(
                 user_data_dir=user_data_dir,
                 accept_downloads=True,
-                headless=headless,
+                headless=False,
                 proxy=playwright_proxy,  # type: ignore
                 viewport={"width": 1920, "height": 1080},
                 user_agent=user_agent,
@@ -427,13 +507,312 @@ class ZhihuCrawler(AbstractCrawler):
         await self.browser_context.close()
         utils.logger.info("[ZhihuCrawler.close] Browser context closed ...")
 
-    # ... existing code ...
+    async def close(self):
+        """Close browser context"""
+        await self.browser_context.close()
+        utils.logger.info("[ZhihuCrawler.close] Browser context closed ...")
+
+    def calculate_median(self, numbers):
+        """
+        计算中位数
+        Args:
+            numbers: 数字列表
+
+        Returns:
+            中位数
+        """
+        if not numbers:
+            return 0
+
+        sorted_numbers = sorted(numbers)
+        n = len(sorted_numbers)
+        if n % 2 == 0:
+            # 偶数个元素，取中间两个数的平均值
+            return (sorted_numbers[n // 2 - 1] + sorted_numbers[n // 2]) // 2
+        else:
+            # 奇数个元素，取中间的数
+            return sorted_numbers[n // 2]
+
+    async def adaptive_delay(self, base_delay=1.0):
+        """
+        自适应延时
+        Args:
+            base_delay: 基础延时秒数
+        """
+        # 添加一些随机性避免被检测
+        delay = base_delay + random.uniform(0.5, 2.0)
+        utils.logger.debug(
+            f"[ZhihuCrawler.adaptive_delay] Waiting for {delay:.2f} seconds"
+        )
+        await asyncio.sleep(delay)
+
     async def get_question_and_notes(self) -> None:
         """
-        Get all articles related to a specific question
+        get question and notes
         Returns:
 
         """
+        utils.logger.info("[ZhihuCrawler.get_question_and_notes] 开始执行问题回答爬取任务")
+
+        # 检查任务ID和爬虫类型
+        from var import crawler_type_var, task_id_var
+
+        task_id = task_id_var.get()
+        crawler_type = crawler_type_var.get()
+        utils.logger.info(f"[ZhihuCrawler.get_question_and_notes] Task ID: {task_id}")
+        utils.logger.info(
+            f"[ZhihuCrawler.get_question_and_notes] Crawler type: {crawler_type}"
+        )
+        utils.logger.info(
+            f"[ZhihuCrawler.get_question_and_notes] Config ZHIHU_QUESTION_URL: {config.ZHIHU_QUESTION_URL}"
+        )
+
+        if not config.ZHIHU_QUESTION_URL:
+            utils.logger.error(
+                "[ZhihuCrawler.get_question_and_notes] ZHIHU_QUESTION_URL is not set in config"
+            )
+            return
+
+        question_url = config.ZHIHU_QUESTION_URL
+        utils.logger.info(
+            f"[ZhihuCrawler.get_question_and_notes] Using question URL: {question_url}"
+        )
+
+        # Parse the question ID from the URL
+        question_id = question_url.split("/")[-1]
+        if not question_id:
+            utils.logger.error(
+                "[ZhihuCrawler.get_question_and_notes] Failed to parse question ID from URL"
+            )
+            return
+
+        utils.logger.info(
+            f"[ZhihuCrawler.get_question_and_notes] 解析到问题ID: {question_id}"
+        )
+
+        # Extract answers and convert to JSON
+        question_answers = []
+
+        # 实现您的策略：先爬取前30条，然后根据中位数调整筛选策略
+        initial_limit = 20  # 初始爬取数量 (知乎API最大限制为20)
+        batch_limit = 20  # 批量爬取数量
+        offset = 0
+        min_voteup_threshold = 0  # 初始不设限
+        total_collected = 0  # 添加计数器跟踪总收集数量
+
+        # 用于统计前30条回答的点赞数
+        initial_voteup_counts = []
+        has_collected_initial = False
+
+        utils.logger.info("[ZhihuCrawler.get_question_and_notes] 开始爬取回答...")
+
+        while True:
+            # 根据策略调整limit
+            current_limit = initial_limit if not has_collected_initial else batch_limit
+            utils.logger.info(
+                f"[ZhihuCrawler.get_question_and_notes] 当前偏移量: {offset}, 限制数量: {current_limit}"
+            )
+
+            try:
+                answers = await self.zhihu_client.get_question_answers(
+                    question_id, offset=offset, limit=current_limit
+                )
+                utils.logger.info(f"[ZhihuCrawler.get_question_and_notes] 获取到回答数据")
+            except Exception as e:
+                utils.logger.error(
+                    f"[ZhihuCrawler.get_question_and_notes] 获取回答数据时出错: {e}"
+                )
+                import traceback
+
+                utils.logger.error(
+                    f"[ZhihuCrawler.get_question_and_notes] 错误追踪: {traceback.format_exc()}"
+                )
+                break
+
+            # 添加自适应延时
+            await self.adaptive_delay(base_delay=1.0)
+
+            if not answers:
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] No more answers found for question ID: {question_id}"
+                )
+                break
+
+            answer_data_list = answers.get("data", [])
+            utils.logger.info(
+                f"[ZhihuCrawler.get_question_and_notes] 获取到 {len(answer_data_list)} 条回答数据"
+            )
+
+            if not answer_data_list:
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] No answer data in response"
+                )
+                break
+
+            # 处理回答数据
+            for answer in answer_data_list:
+                # 检查是否已达到200条限制
+                if total_collected >= 200:
+                    utils.logger.info(
+                        f"[ZhihuCrawler.get_question_and_notes] 已达到200条回答限制，停止爬取"
+                    )
+                    break
+
+                answer_id = answer.get("id")
+                if not answer_id:
+                    continue
+
+                voteup_count = answer.get("voteup_count", 0)
+
+                # 收集前initial_limit条的点赞数
+                if (
+                    not has_collected_initial
+                    and len(initial_voteup_counts) < initial_limit
+                ):
+                    initial_voteup_counts.append(voteup_count)
+
+                    # 当收集满initial_limit条后，计算中位数并设置阈值
+                    if len(initial_voteup_counts) == initial_limit:
+                        median_voteup = self.calculate_median(initial_voteup_counts)
+                        min_voteup_threshold = median_voteup // 2  # 设置阈值为中位数的一半
+                        has_collected_initial = True
+                        utils.logger.info(
+                            f"[ZhihuCrawler.get_question_and_notes] Collected initial {initial_limit} answers. "
+                            f"Median voteup count: {median_voteup}, Setting threshold: {min_voteup_threshold}"
+                        )
+
+                # 如果未达到阈值，跳过该回答
+                if has_collected_initial and voteup_count < min_voteup_threshold:
+                    utils.logger.debug(
+                        f"[ZhihuCrawler.get_question_and_notes] Skipping answer {answer_id} "
+                        f"with voteup count {voteup_count} < threshold {min_voteup_threshold}"
+                    )
+                    continue
+
+                # Get answer details
+                try:
+                    answer_info = await self.zhihu_client.get_answer_info(
+                        question_id, answer_id
+                    )
+                    utils.logger.info(
+                        f"[ZhihuCrawler.get_question_and_notes] 获取到回答 {answer_id} 的详细信息"
+                    )
+                except Exception as e:
+                    utils.logger.error(
+                        f"[ZhihuCrawler.get_question_and_notes] 获取回答 {answer_id} 详细信息时出错: {e}"
+                    )
+                    continue
+
+                if not answer_info:
+                    continue
+
+                try:
+                    answer_dict = (
+                        self.zhihu_client._extractor.extract_question_answer_fields(
+                            answer
+                        )
+                    )
+                    answer_dict["source_keyword"] = source_keyword_var.get() or ""
+                    question_answer = ZhihuQuestionAnswer(**answer_dict)
+                    question_answers.append(question_answer)
+                    total_collected += 1  # 增加计数器
+                    utils.logger.info(
+                        f"[ZhihuCrawler.get_question_and_notes] 成功处理回答 {answer_id}"
+                    )
+                except Exception as e:
+                    utils.logger.error(
+                        f"[ZhihuCrawler.get_question_and_notes] 处理回答 {answer_id} 时出错: {e}"
+                    )
+
+            # 检查是否已达到200条限制
+            if total_collected >= 200:
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] 已达到200条回答限制，停止爬取"
+                )
+                break
+
+            # 检查是否还有更多数据
+            paging = answers.get("paging", {})
+            if paging.get("is_end", True):
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] Reached end of answers"
+                )
+                break
+
+            # 更新offset
+            offset += current_limit
+
+            # 在批次之间添加较长的延时
+            await self.adaptive_delay(base_delay=2.0)
+
+        utils.logger.info(
+            f"[ZhihuCrawler.get_question_and_notes] Total collected answers: {len(question_answers)}"
+        )
+
+        # 存储 question_answers 到 JSON 文件
+        if question_answers:
+            try:
+                await zhihu_store.batch_update_zhihu_question_answers(question_answers)
+                utils.logger.info("[ZhihuCrawler.get_question_and_notes] 成功存储回答数据")
+            except Exception as e:
+                utils.logger.error(
+                    f"[ZhihuCrawler.get_question_and_notes] 存储回答数据时出错: {e}"
+                )
+        else:
+            utils.logger.info("[ZhihuCrawler.get_question_and_notes] 没有收集到任何回答数据")
+        """
+        get question and notes
+        Returns:
+
+        """
+        # 检查任务ID和爬虫类型
+        from var import crawler_type_var, task_id_var
+
+        task_id = task_id_var.get()
+        crawler_type = crawler_type_var.get()
+        print(f"get_question_and_notes - Task ID: {task_id}")
+        print(f"get_question_and_notes - Crawler type: {crawler_type}")
+        print(
+            f"get_question_and_notes - Current config ZHIHU_QUESTION_URL: {config.ZHIHU_QUESTION_URL}"
+        )
+
+        # 检查环境变量
+        session_config_path = os.environ.get("CRAWLER_SESSION_CONFIG")
+        if session_config_path:
+            print(f"Session config path: {session_config_path}")
+            if os.path.exists(session_config_path):
+                # 读取会话配置文件内容来验证
+                try:
+                    with open(session_config_path, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        if "ZHIHU_QUESTION_URL" in content:
+                            import re
+
+                            match = re.search(
+                                r'ZHIHU_QUESTION_URL = "([^"]+)"', content
+                            )
+                            if match:
+                                print(
+                                    f"Session config ZHIHU_QUESTION_URL: {match.group(1)}"
+                                )
+                except Exception as e:
+                    print(f"Error reading session config: {e}")
+
+        question_url = config.ZHIHU_QUESTION_URL
+        print(f"Using question URL: {question_url}")
+
+        # rest of the method...
+
+        from var import crawler_type_var, task_id_var
+
+        task_id = task_id_var.get()
+        crawler_type = crawler_type_var.get()
+        print(f"get_question_and_notes - Task ID: {task_id}")
+        print(f"get_question_and_notes - Crawler type: {crawler_type}")
+        print(
+            f"get_question_and_notes - Config ZHIHU_QUESTION_URL: {config.ZHIHU_QUESTION_URL}"
+        )
+
         if not config.ZHIHU_QUESTION_URL:
             utils.logger.error(
                 "[ZhihuCrawler.get_question_and_notes] ZHIHU_QUESTION_URL is not set in config"
@@ -452,43 +831,129 @@ class ZhihuCrawler(AbstractCrawler):
             return
 
         # Get all answers for the question
-        answers = await self.zhihu_client.get_question_answers(question_id)
-        if not answers:
-            utils.logger.info(
-                f"[ZhihuCrawler.get_question_and_notes] No answers found for question ID: {question_id}"
-            )
-            return
+        # answers = await self.zhihu_client.get_question_answers(question_id)
+        # if not answers:
+        #     utils.logger.info(
+        #         f"[ZhihuCrawler.get_question_and_notes] No answers found for question ID: {question_id}"
+        #     )
+        #     return
 
         # Extract answers and convert to JSON
         question_answers = []
-        for answer in answers.get("data", []):
-            answer_id = answer.get("id")
-            if not answer_id:
-                continue
 
-            # Get answer details
-            answer_info = await self.zhihu_client.get_answer_info(
-                question_id, answer_id
+        # 实现您的策略：先爬取前30条，然后根据中位数调整筛选策略
+        initial_limit = 20  # 初始爬取数量 (知乎API最大限制为20)
+        batch_limit = 20  # 批量爬取数量
+        offset = 0
+        min_voteup_threshold = 0  # 初始不设限
+
+        # 用于统计前30条回答的点赞数
+        initial_voteup_counts = []
+        has_collected_initial = False
+
+        while True:
+            # 根据策略调整limit
+            current_limit = initial_limit if not has_collected_initial else batch_limit
+
+            answers = await self.zhihu_client.get_question_answers(
+                question_id, offset=offset, limit=current_limit
             )
-            print("answer_info:", answer_info)
-            if not answer_info:
-                continue
 
-            # 将 answer_info 转换为 ZhihuQuestionAnswer 对象
-            answer_dict = answer_info.model_dump()
-            # 确保时间字段有默认值
-            if "created_time" not in answer_dict or answer_dict["created_time"] is None:
-                answer_dict["created_time"] = 0
-            if "updated_time" not in answer_dict or answer_dict["updated_time"] is None:
-                answer_dict["updated_time"] = 0
+            # 添加自适应延时
+            await self.adaptive_delay(base_delay=1.0)
 
-            question_answer = ZhihuQuestionAnswer(**answer_dict)
-            question_answer.source_keyword = source_keyword_var.get()
+            if not answers:
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] No more answers found for question ID: {question_id}"
+                )
+                break
 
-            question_answers.append(question_answer)
+            answer_data_list = answers.get("data", [])
+            if not answer_data_list:
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] No answer data in response"
+                )
+                break
+
+            # 处理回答数据
+            for answer in answer_data_list:
+                answer_id = answer.get("id")
+                if not answer_id:
+                    continue
+
+                voteup_count = answer.get("voteup_count", 0)
+
+                # 收集前initial_limit条的点赞数
+                if (
+                    not has_collected_initial
+                    and len(initial_voteup_counts) < initial_limit
+                ):
+                    initial_voteup_counts.append(voteup_count)
+
+                    # 当收集满initial_limit条后，计算中位数并设置阈值
+                    if len(initial_voteup_counts) == initial_limit:
+                        median_voteup = self.calculate_median(initial_voteup_counts)
+                        min_voteup_threshold = median_voteup // 2  # 设置阈值为中位数的一半
+                        has_collected_initial = True
+                        utils.logger.info(
+                            f"[ZhihuCrawler.get_question_and_notes] Collected initial {initial_limit} answers. "
+                            f"Median voteup count: {median_voteup}, Setting threshold: {min_voteup_threshold}"
+                        )
+
+                # 如果未达到阈值，跳过该回答
+                if has_collected_initial and voteup_count < min_voteup_threshold:
+                    utils.logger.debug(
+                        f"[ZhihuCrawler.get_question_and_notes] Skipping answer {answer_id} "
+                        f"with voteup count {voteup_count} < threshold {min_voteup_threshold}"
+                    )
+                    continue
+
+                # Get answer details
+                answer_info = await self.zhihu_client.get_answer_info(
+                    question_id, answer_id
+                )
+                # print("answer_info:", answer_info)
+                if not answer_info:
+                    continue
+
+                # 将 answer_info 转换为 ZhihuQuestionAnswer 对象
+                # answer_dict = answer_info.model_dump()
+                # # 确保时间字段有默认值
+                # if "created_time" not in answer_dict or answer_dict["created_time"] is None:
+                #     answer_dict["created_time"] = 0
+                # if "updated_time" not in answer_dict or answer_dict["updated_time"] is None:
+                #     answer_dict["updated_time"] = 0
+
+                # question_answer = ZhihuQuestionAnswer(**answer_dict)
+                # question_answer.source_keyword = source_keyword_var.get()
+
+                # question_answers.append(question_answer)
+
+                answer_dict = (
+                    self.zhihu_client._extractor.extract_question_answer_fields(answer)
+                )
+                answer_dict["source_keyword"] = source_keyword_var.get() or ""
+                question_answer = ZhihuQuestionAnswer(**answer_dict)
+
+                question_answers.append(question_answer)
+
+            # 检查是否还有更多数据
+            paging = answers.get("paging", {})
+            if paging.get("is_end", True):
+                utils.logger.info(
+                    f"[ZhihuCrawler.get_question_and_notes] Reached end of answers"
+                )
+                break
+
+            # 更新offset
+            offset += current_limit
+
+            # 在批次之间添加较长的延时
+            await self.adaptive_delay(base_delay=2.0)
+
+        utils.logger.info(
+            f"[ZhihuCrawler.get_question_and_notes] Total collected answers: {len(question_answers)}"
+        )
 
         # 存储 question_answers 到 JSON 文件
         await zhihu_store.batch_update_zhihu_question_answers(question_answers)
-
-
-# ... existing code ...

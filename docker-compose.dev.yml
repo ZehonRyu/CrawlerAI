@@ -1,4 +1,4 @@
-version: '1.0'
+version: '3.8'
 
 services:
   crawlerai:
@@ -17,10 +17,14 @@ services:
       # 挂载数据目录（确保目录存在）
       - ./data:/app/data
       - ./browser_data:/app/browser_data
+      - ./sessions:/app/sessions
     environment:
       - HOST=0.0.0.0
       - PORT=5000
       - DEBUG=True
+      - REDIS_URL=redis://host.docker.internal:6379/0
       - DATA_DIR=/app/data
       - BROWSER_DATA_DIR=/app/browser_data
     restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

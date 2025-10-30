@@ -30,16 +30,24 @@ except ImportError:
             from AI.AI_rag.Ragmodel import UniversalModel
 
 
-def generate_summary(platform):
+def generate_summary(platform, session_id=None):
     """
     生成内容总结
-    :param model_name: 模型名称
+    :param platform: 平台名称
+    :param session_id: 会话ID，用于定位会话特定的模型
     :return: 总结内容
     """
     model_name = platform if platform.endswith("_model") else f"{platform}_model"
+
+    # 如果提供了session_id，则使用会话特定的模型路径
+    if session_id:
+        model_path = f"sessions/{session_id}/model_{model_name}"
+    else:
+        model_path = f"model_{model_name}"
+
     try:
-        # 加载模型
-        qa_model = UniversalModel(model_name)
+        # 加载模型，传递模型路径
+        qa_model = UniversalModel(model_name, model_path=model_path)
 
         # 生成总结 - 使用更结构化的提示词
         summary = qa_model.generate_summary(
@@ -57,17 +65,25 @@ def generate_summary(platform):
         raise Exception(f"生成总结时出错: {e}")
 
 
-def ask_question(question, platform):
+def ask_question(question, platform, session_id=None):
     """
     回答问题
     :param question: 问题
-    :param model_name: 模型名称
+    :param platform: 平台名称
+    :param session_id: 会话ID，用于定位会话特定的模型
     :return: 回答内容
     """
     model_name = platform if platform.endswith("_model") else f"{platform}_model"
+
+    # 如果提供了session_id，则使用会话特定的模型路径
+    if session_id:
+        model_path = f"sessions/{session_id}/model_{model_name}"
+    else:
+        model_path = f"model_{model_name}"
+
     try:
-        # 加载模型
-        qa_model = UniversalModel(model_name)
+        # 加载模型，传递模型路径
+        qa_model = UniversalModel(model_name, model_path=model_path)
 
         # 回答问题 - 使用更安全的提示词
         safe_question = (

@@ -125,6 +125,8 @@ ENV DEBUG=False
 ENV DATA_DIR=/app/data
 ENV BROWSER_DATA_DIR=/app/browser_data
 ENV HEADLESS=true
+ENV REDIS_URL=redis://host.docker.internal:6379/0
+
 
 # 健康检查
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \

@@ -135,3 +135,20 @@ class ZhiHuLogin(AbstractLogin):
             await self.browser_context.add_cookies(
                 [{"name": key, "value": value, "domain": ".zhihu.com", "path": "/"}]
             )
+
+    async def get_qr_code_data(self):
+        """获取二维码数据供Web界面显示"""
+        utils.logger.info(
+            "[ZhiHu.get_qr_code_data] Getting qrcode data for web interface ..."
+        )
+        qrcode_img_selector = "canvas.Qrcode-qrcode"
+        # find login qrcode
+        base64_qrcode_img = await utils.find_qrcode_img_from_canvas(
+            self.context_page, canvas_selector=qrcode_img_selector
+        )
+        if not base64_qrcode_img:
+            utils.logger.info(
+                "[ZhiHu.get_qr_code_data] failed to get qrcode, please check ...."
+            )
+            return None
+        return base64_qrcode_img

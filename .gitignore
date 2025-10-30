@@ -67,3 +67,52 @@ models.zip
 *.tar
 
 ffmpeg-7.0.2-essentials_build
+
+# 新增的忽略规则
+# 会话文件
+sessions/*/
+
+# 临时上传文件
+temp_uploads/
+
+# 传输数据目录
+transmit_data/
+
+# 处理后的数据文件
+processed_*_data.txt
+
+# Redis dump文件
+dump.rdb
+
+# Docker相关
+docker-compose.override.yml
+
+# 本地配置文件
+config/local_*.py
+
+# 系统文件
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# 编辑器备份文件
+*~
+*.bak
+*.tmp
+
+# Celery相关
+celerybeat-schedule
+celerybeat.pid
+
+# Python egg相关
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 分发打包相关
+build/
+dist/
+sdist/
+wheels/

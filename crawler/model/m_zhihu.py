@@ -72,6 +72,29 @@ class ZhihuCreator(BaseModel):
     get_voteup_count: int = Field(default=0, description="获得的赞同数")
 
 
+# class ZhihuQuestionAnswer(BaseModel):
+#     content_id: str
+#     content_type: str
+#     content_text: str
+#     content_url: str
+#     question_id: str
+#     title: str
+#     desc: str
+#     # created_time: Optional[str]
+#     # updated_time: Optional[str]
+#     voteup_count: int
+#     comment_count: int
+#     source_keyword: str
+#     user_id: str
+#     user_link: str
+#     user_nickname: str
+#     user_avatar: Optional[str]
+#     user_url_token: Optional[str]
+
+#     created_time: Union[int, str]  # 允许整数或字符串
+#     updated_time: Union[int, str]
+
+
 class ZhihuQuestionAnswer(BaseModel):
     content_id: str
     content_type: str
@@ -80,8 +103,6 @@ class ZhihuQuestionAnswer(BaseModel):
     question_id: str
     title: str
     desc: str
-    # created_time: Optional[str]
-    # updated_time: Optional[str]
     voteup_count: int
     comment_count: int
     source_keyword: str
@@ -90,6 +111,18 @@ class ZhihuQuestionAnswer(BaseModel):
     user_nickname: str
     user_avatar: Optional[str]
     user_url_token: Optional[str]
-
     created_time: Union[int, str]  # 允许整数或字符串
     updated_time: Union[int, str]
+
+    # 新增的字段
+    question_title: str = Field(default="", description="问题标题")
+    author_headline: str = Field(default="", description="作者个人简介")
+    author_gender: Optional[int] = Field(default=None, description="作者性别")
+    is_collapsed: bool = Field(default=False, description="是否被折叠")
+    answer_type: str = Field(default="normal", description="回答类型")
+    question_type: str = Field(default="normal", description="问题类型")
+    is_normal: bool = Field(default=True, description="是否为正常内容")
+    reward_member_count: int = Field(default=0, description="打赏人数")
+    reward_total_money: int = Field(default=0, description="打赏总金额")
+    excerpt: str = Field(default="", description="内容摘要")
+    reshipment_settings: str = Field(default="allowed", description="转载设置")

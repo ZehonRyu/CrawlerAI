@@ -145,7 +145,4 @@ async def update_zhihu_question_answer(question_answer: ZhihuQuestionAnswer):
     question_answer.source_keyword = source_keyword_var.get()
     local_db_item = question_answer.model_dump()
     local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
-    utils.logger.info(
-        f"[store.zhihu.update_zhihu_question_answer] zhihu question answer: {local_db_item}"
-    )
     await ZhihuStoreFactory.create_store().store_content(local_db_item)

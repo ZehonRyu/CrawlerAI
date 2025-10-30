@@ -5,6 +5,7 @@ from typing import List
 import aiomysql
 from async_db import AsyncMysqlDB
 
+task_id_var: ContextVar[str] = ContextVar("task_id", default="")
 request_keyword_var: ContextVar[str] = ContextVar("request_keyword", default="")
 crawler_type_var: ContextVar[str] = ContextVar("crawler_type", default="")
 comment_tasks_var: ContextVar[List[Task]] = ContextVar("comment_tasks", default=[])

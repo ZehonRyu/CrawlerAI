@@ -510,6 +510,72 @@ class ZhihuExtractor:
 
         return self._extract_zvideo_content(video_detail_info)
 
+    def extract_question_answer_fields(self, answer_data: Dict) -> Dict:
+        """
+        从原始回答数据中提取字段用于ZhihuQuestionAnswer
+        Args:
+            answer_data: 原始回答数据
+
+        Returns:
+            用于创建ZhihuQuestionAnswer的字典
+        """
+        result = {}
+
+        # 基础字段
+        result["content_id"] = str(answer_data.get("id", ""))
+        result["content_type"] = answer_data.get("type", "")
+        result["content_text"] = answer_data.get("content", "")
+        result["voteup_count"] = answer_data.get("voteup_count", 0)
+        result["comment_count"] = answer_data.get("comment_count", 0)
+        result["created_time"] = answer_data.get("created_time", 0)
+        result["updated_time"] = answer_data.get("updated_time", 0)
+        result["excerpt"] = answer_data.get("excerpt", "")
+        result["answer_type"] = answer_data.get("answer_type", "normal")
+        result["is_collapsed"] = answer_data.get("is_collapsed", False)
+        result["is_normal"] = answer_data.get("is_normal", True)
+        result["reshipment_settings"] = answer_data.get(
+            "reshipment_settings", "allowed"
+        )
+
+        # 问题相关字段
+        question = answer_data.get("question", {})
+        result["question_id"] = str(question.get("id", ""))
+        result["question_title"] = question.get("title", "")
+        result["question_type"] = question.get("question_type", "normal")
+
+        # 作者相关字段
+        author = answer_data.get("author", {})
+        result["user_id"] = str(author.get("id", ""))
+        result["user_nickname"] = author.get("name", "")
+        result["user_avatar"] = author.get("avatar_url", "")
+        result["user_url_token"] = author.get("url_token", "")
+        result["user_link"] = (
+            f"{zhihu_constant.ZHIHU_URL}/people/{result['user_url_token']}"
+            if result["user_url_token"]
+            else ""
+        )
+        result["author_headline"] = author.get("headline", "")
+        result["author_gender"] = author.get("gender")
+        result["author_badge"] = author.get("badge", [])
+
+        # 打赏相关字段
+        reward_info = answer_data.get("reward_info", {})
+        result["reward_member_count"] = reward_info.get("reward_member_count", 0)
+        result["reward_total_money"] = reward_info.get("reward_total_money", 0)
+
+        # 内容摘要（如果没有excerpt则从content_text获取）
+        result["desc"] = (
+            result["excerpt"]
+            if result["excerpt"]
+            else (result["content_text"][:150] if result["content_text"] else "")
+        )
+        result["title"] = result["question_title"]
+        result[
+            "content_url"
+        ] = f"{zhihu_constant.ZHIHU_URL}/question/{result['question_id']}/answer/{result['content_id']}"
+
+        return result
+
 
 def judge_zhihu_url(note_detail_url: str) -> str:
     """
