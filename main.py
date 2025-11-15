@@ -3,6 +3,7 @@ import asyncio
 import glob
 import logging
 import os
+import re
 import shutil
 import sys
 import threading
@@ -11,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional, Tuple
 
+from AI.audio_video.video_to_txt import extract_txt_from_mp4
 from crawler_celery import celery_app
 
 # 设置项目根目录
@@ -136,7 +138,7 @@ def find_crawler_files(config: CrawlerConfig) -> List[Tuple[str, str, str]]:
     else:
         print(f"Using default data directory: {data_base_dir}")
 
-    if config.platform == "bili":
+    if config.platform == "bilibili":
         # 修改为搜索 data/bilibili/videos/*/video.mp4 模式
         search_pattern = f"{data_base_dir}/bilibili/videos/**/video.mp4"
         mp4_files = glob.glob(search_pattern, recursive=True)
@@ -198,7 +200,6 @@ def find_crawler_files(config: CrawlerConfig) -> List[Tuple[str, str, str]]:
     return file_groups
 
 
-@celery_app.task(bind=True)
 def run_crawler_internal(
     self,
     logintype: str,
@@ -269,10 +270,14 @@ def run_crawler_internal(
         os.environ["CRAWLER_TASK_ID"] = Cconfig.session.task_id
         os.environ["CRAWLER_WORK_DIR"] = Cconfig.session.session_dir
         os.environ["CRAWLER_SESSION_CONFIG"] = session_config_path
+        os.environ["DATA_STORAGE_PATH"] = f"sessions/{Cconfig.session.task_id}/data"
+        os.environ["DATA_DIR"] = f"sessions/{Cconfig.session.task_id}/data"
 
         print(f"Session ID: {Cconfig.session.task_id}")
         print(f"Work directory: {Cconfig.session.session_dir}")
         print(f"Session config: {session_config_path}")
+        print(f"设置环境变量 DATA_STORAGE_PATH = sessions/{Cconfig.session.task_id}/data")
+        print(f"设置环境变量 DATA_DIR = sessions/{Cconfig.session.task_id}/data")
 
         # 如果提供了URL，验证配置是否正确更新
         if url and task_type:
@@ -280,6 +285,11 @@ def run_crawler_internal(
             try:
                 with open(session_config_path, "r", encoding="utf-8") as f:
                     config_content = f.read()
+                    print(f"会话配置文件内容预览:")
+                    lines = config_content.split("\n")
+                    for i, line in enumerate(lines):
+                        if "DATA_DIR" in line or "DATA_STORAGE_PATH" in line:
+                            print(f"  Line {i+1}: {line}")
                     if (
                         task_type == "zhihu-question"
                         and "ZHIHU_QUESTION_URL" in config_content
@@ -305,8 +315,69 @@ def run_crawler_internal(
         # 添加crawler目录到Python路径
         project_root = os.path.dirname(os.path.abspath(__file__))
         crawler_path = os.path.join(project_root, "crawler")
+
+        # 添加会话配置目录到Python路径开头，确保优先使用会话配置
+        session_config_dir = os.path.join(Cconfig.session.session_dir, "config")
+        if session_config_dir not in sys.path:
+            sys.path.insert(0, session_config_dir)
+            print(f"添加会话配置目录到Python路径: {session_config_dir}")
+
         if crawler_path not in sys.path:
             sys.path.insert(0, crawler_path)
+            print(f"添加crawler目录到Python路径: {crawler_path}")
+
+        # 验证配置
+        print("\n验证配置:")
+        print(f"当前工作目录: {os.getcwd()}")
+        print(f"Python路径前10个: {sys.path[:10]}")  # 显示前10个路径
+
+        # 检查环境变量
+        print(f"DATA_STORAGE_PATH环境变量: {os.environ.get('DATA_STORAGE_PATH', '未设置')}")
+        print(f"DATA_DIR环境变量: {os.environ.get('DATA_DIR', '未设置')}")
+        print(
+            f"CRAWLER_SESSION_CONFIG环境变量: {os.environ.get('CRAWLER_SESSION_CONFIG', '未设置')}"
+        )
+
+        # 尝试导入配置验证
+        try:
+            print("尝试导入会话特定配置...")
+            # 先尝试导入会话特定配置
+            sys.path.insert(0, session_config_dir)
+            import importlib
+
+            import crawler.config.base_config as session_config
+
+            print(f"会话配置DATA_DIR: {session_config.DATA_DIR}")
+            print(
+                f"会话配置DATA_STORAGE_PATH: {getattr(session_config, 'DATA_STORAGE_PATH', '未定义')}"
+            )
+            importlib.reload(session_config)  # 重新加载确保使用最新配置
+        except Exception as e:
+            print(f"会话配置导入失败: {e}")
+
+            # 尝试查看会话配置文件内容
+            try:
+                session_config_file = os.path.join(session_config_dir, "base_config.py")
+                if os.path.exists(session_config_file):
+                    print(f"会话配置文件存在: {session_config_file}")
+                    with open(session_config_file, "r", encoding="utf-8") as f:
+                        content = f.read()
+                        print("会话配置文件内容 (前20行):")
+                        for i, line in enumerate(content.split("\n")[:20]):
+                            print(f"  {i+1}: {line}")
+                else:
+                    print(f"会话配置文件不存在: {session_config_file}")
+            except Exception as file_error:
+                print(f"读取会话配置文件失败: {file_error}")
+
+        # 检查爬虫模块如何获取数据目录
+        print("\n检查爬虫模块数据目录获取方式:")
+        try:
+            from crawler.media_platform.bilibili.core import BilibiliCrawler
+
+            print(f"BilibiliCrawler应该使用的数据目录: sessions/{Cconfig.session.task_id}/data")
+        except Exception as e:
+            print(f"无法检查BilibiliCrawler: {e}")
 
         # 直接导入并运行爬虫
         # 运行爬虫（使用同步方式）
@@ -372,6 +443,8 @@ def run_crawler_internal(
             "CRAWLER_TASK_ID",
             "CRAWLER_WORK_DIR",
             "CRAWLER_SESSION_CONFIG",
+            "DATA_STORAGE_PATH",
+            "DATA_DIR",
         ]
         for var in env_vars_to_clear:
             if var in os.environ:
@@ -530,28 +603,35 @@ def transmit_data(config: CrawlerConfig):
 
     print(f"Transmit data - Task ID: {task_id}")
 
-    # 使用会话特定的数据目录或默认目录
-    data_dir = "data/zhihu/json"
+    # 首先尝试使用会话特定的数据目录
+    data_dir = None
     if config.session:
-        data_dir = f"{config.session.data_dir}/zhihu/json"
-
-    print(f"Trying to find files in directory: {data_dir}")
-    print(f"Data directory exists: {os.path.exists(data_dir)}")
-
-    # 如果会话特定的数据目录不存在，尝试其他可能的路径
-    if not os.path.exists(data_dir) and config.session:
-        # 尝试在会话目录中查找
-        fallback_data_dirs = [
+        # 尝试会话特定的数据目录
+        session_data_dirs = [
+            f"{config.session.data_dir}/{platform}/json",
+            f"{config.session.data_dir}/{platform}",
             f"{config.session.session_dir}/data/{platform}/json",
-            f"data/{platform}/json",
+            f"{config.session.session_dir}/data/{platform}",
         ]
-        for fallback_dir in fallback_data_dirs:
-            if os.path.exists(fallback_dir):
-                data_dir = fallback_dir
-                print(f"Fallback to data directory: {data_dir}")
+
+        for dir_path in session_data_dirs:
+            if os.path.exists(dir_path):
+                data_dir = dir_path
+                print(f"Using session data directory: {data_dir}")
                 break
 
-    if not os.path.exists(data_dir):
+    # 如果没有会话特定目录，尝试全局目录
+    if not data_dir:
+        global_data_dirs = [f"data/{platform}/json", f"data/{platform}"]
+
+        for dir_path in global_data_dirs:
+            if os.path.exists(dir_path):
+                data_dir = dir_path
+                print(f"Using global data directory: {data_dir}")
+                break
+
+    # 如果仍然找不到数据目录
+    if not data_dir or not os.path.exists(data_dir):
         logging.error(f"数据目录不存在: {data_dir}")
         # 列出可能的目录帮助调试
         print("Available directories:")
@@ -562,15 +642,23 @@ def transmit_data(config: CrawlerConfig):
                 print("  data: (无法列出内容)")
         if config.session and os.path.exists(config.session.session_dir):
             try:
-                print(f"  session dir: {os.listdir(config.session.session_dir)}")
+                session_data_path = f"{config.session.session_dir}/data"
+                if os.path.exists(session_data_path):
+                    print(f"  session data: {os.listdir(session_data_path)}")
             except:
-                print("  session dir: (无法列出内容)")
+                print("  session data: (无法列出内容)")
         return None
 
     print(f"Final data directory: {data_dir}")
+
+    # 获取目录中的文件列表
     try:
-        data_dir_contents = os.listdir(data_dir)
-        print(f"Files in data directory: {data_dir_contents}")
+        if os.path.isdir(data_dir):
+            data_dir_contents = os.listdir(data_dir)
+            print(f"Files in data directory: {data_dir_contents}")
+        else:
+            logging.error(f"数据目录不是有效目录: {data_dir}")
+            return None
     except Exception as e:
         print(f"Error listing data directory: {e}")
         return None
@@ -582,30 +670,55 @@ def transmit_data(config: CrawlerConfig):
         for file in data_dir_contents:
             if (
                 file.startswith(f"{config.crawlertype}_")
-                and today in file
-                and file.endswith(".json")
-                and task_id in file
+                and (today in file or task_id in file)
+                and file.endswith((".json", ".txt"))
             ):
                 file_path = os.path.join(data_dir, file)
-                target_files.append((file_path, os.path.getmtime(file_path)))
-                print(f"Found task-specific file: {file_path}")
-                break  # 找到匹配的就停止
+                if os.path.isfile(file_path):  # 确保是文件而不是目录
+                    target_files.append((file_path, os.path.getmtime(file_path)))
+                    print(f"Found task-specific file: {file_path}")
 
     # 如果没有找到与任务ID匹配的文件，查找今天的文件
     if not target_files:
         print("No task-specific file found, searching for today's files")
         for file in data_dir_contents:
             if (
-                file.startswith(f"{config.crawlertype}_")
-                and today in file
-                and file.endswith(".json")
+                (
+                    file.startswith(f"{config.crawlertype}_")
+                    or config.crawlertype in file
+                )
+                and (today in file)
+                and file.endswith((".json", ".txt"))
             ):
                 file_path = os.path.join(data_dir, file)
-                target_files.append((file_path, os.path.getmtime(file_path)))
-                print(f"Found today's file: {file_path}")
+                if os.path.isfile(file_path):  # 确保是文件而不是目录
+                    target_files.append((file_path, os.path.getmtime(file_path)))
+                    print(f"Found today's file: {file_path}")
+
+    # 如果仍然没有找到文件，尝试查找任何相关的文件
+    if not target_files:
+        print("No today's files found, searching for any related files")
+        for file in data_dir_contents:
+            if (config.crawlertype in file or platform in file) and file.endswith(
+                (".json", ".txt")
+            ):
+                file_path = os.path.join(data_dir, file)
+                if os.path.isfile(file_path):  # 确保是文件而不是目录
+                    target_files.append((file_path, os.path.getmtime(file_path)))
+                    print(f"Found related file: {file_path}")
 
     if not target_files:
-        logging.error(f"未找到当天的数据文件: {data_dir}")
+        logging.error(f"未找到相关的数据文件: {data_dir}")
+        # 列出目录中的所有文件帮助调试
+        try:
+            all_files = [
+                f
+                for f in data_dir_contents
+                if os.path.isfile(os.path.join(data_dir, f))
+            ]
+            print(f"All files in directory: {all_files}")
+        except:
+            print("无法列出目录中的文件")
         return None
 
     # 按修改时间排序，获取最新的文件
@@ -645,11 +758,6 @@ def transmit_data(config: CrawlerConfig):
         shutil.copy2(data_file_path, transmit_file_path)
         print(f"Copied file from {data_file_path} to {transmit_file_path}")
         logging.info(f"数据文件已传输到: {transmit_file_path}")
-
-        # 记录任务和文件的映射关系
-        global task_file_mapping
-        task_file_mapping[task_id] = transmit_file_path
-        print(f"Task-file mapping updated: {task_id} -> {transmit_file_path}")
 
         # 返回传输文件路径和会话ID（如果存在）
         result = {"file_path": transmit_file_path}
@@ -739,7 +847,7 @@ def process_crawler_data(Cconfig: CrawlerConfig) -> str:
     file_groups = find_crawler_files(Cconfig)
     processed_content = ""
 
-    if Cconfig.platform == "bili" and file_groups:
+    if Cconfig.platform == "bilibili" and file_groups:
         processed_content = process_bili_data(file_groups)
     elif Cconfig.platform == "zhihu" and file_groups:
         processed_content = process_zhihu_data(file_groups)
@@ -749,85 +857,90 @@ def process_crawler_data(Cconfig: CrawlerConfig) -> str:
     return processed_content.strip()
 
 
-def create_session_config(
-    session: UserSession,
-    original_config_path: str,
-    url: str = None,
-    task_type: str = None,
-) -> str:
+def create_session_config(session, original_config_path, url=None, task_type=None):
     """
-    为会话创建特定的配置文件
+    为会话创建特定的配置文件，修改数据存储路径
     """
+    # 创建会话配置目录
+    session_config_dir = os.path.join(session.session_dir, "config")
+    os.makedirs(session_config_dir, exist_ok=True)
+
+    # 会话特定的配置文件路径
+    session_config_path = os.path.join(session_config_dir, "base_config.py")
+
     # 读取原始配置文件
     with open(original_config_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
+        config_content = f.read()
 
-    # 如果提供了URL，更新相应的配置项
+    # 修改数据存储路径，将数据存储到会话目录中
+    import re
+
+    # 替换DATA_STORAGE_PATH定义
+    config_content = re.sub(
+        r'DATA_STORAGE_PATH = os\.environ\.get\("DATA_STORAGE_PATH", "data"\)',
+        f'DATA_STORAGE_PATH = "sessions/{session.task_id}/data"',
+        config_content,
+    )
+
+    # 替换DATA_DIR定义
+    config_content = re.sub(
+        r"DATA_DIR = DATA_STORAGE_PATH",
+        f'DATA_DIR = "sessions/{session.task_id}/data"',
+        config_content,
+    )
+
+    # 替换目录创建语句
+    config_content = re.sub(
+        r"os\.makedirs\(DATA_DIR, exist_ok=True\)",
+        f'os.makedirs("sessions/{session.task_id}/data", exist_ok=True)',
+        config_content,
+    )
+
+    # 根据任务类型更新URL配置
     if url and task_type:
-        print(f"Updating config with URL: {url} for task type: {task_type}")
         if task_type == "zhihu-question":
-            # 更新知乎问题URL
-            for i, line in enumerate(lines):
-                if line.startswith("ZHIHU_QUESTION_URL ="):
-                    lines[i] = f'ZHIHU_QUESTION_URL = "{url}"  # 替换为实际的问题URL\n'
-                    print(f"Updated ZHIHU_QUESTION_URL to: {url}")
-                    break
+            config_content = re.sub(
+                r'ZHIHU_QUESTION_URL = ".*?"',
+                f'ZHIHU_QUESTION_URL = "{url}"',
+                config_content,
+            )
         elif task_type == "bili-video":
-            # 更新B站指定视频ID列表
-            start_index = -1
-            end_index = -1
-            for i, line in enumerate(lines):
-                if "BILI_SPECIFIED_ID_LIST = [" in line:
-                    start_index = i
-                elif start_index != -1 and line.strip() == "]" and end_index == -1:
-                    end_index = i
-                    break
-
-            if start_index != -1 and end_index != -1:
-                import re
-
-                match = re.search(r"BV[0-9A-Za-z]+", url)
-                if match:
-                    bv_id = match.group(0)
-                    lines[start_index] = "BILI_SPECIFIED_ID_LIST = [\n"
-                    lines[start_index + 1] = f'    "{bv_id}"\n'
-                    lines[start_index + 2] = "]\n"
-                    for _ in range(end_index - start_index - 2):
-                        lines.pop(start_index + 3)
-                    print(f"Updated BILI_SPECIFIED_ID_LIST with BV ID: {bv_id}")
+            bv_id = extract_bv_id_from_url(url)
+            if bv_id:
+                # 替换B站视频ID列表
+                config_content = re.sub(
+                    r"BILI_SPECIFIED_ID_LIST = \[.*?\]",
+                    f'BILI_SPECIFIED_ID_LIST = ["{bv_id}"]',
+                    config_content,
+                    flags=re.DOTALL,
+                )
         elif task_type == "xhs-detail":
-            # 更新小红书指定笔记URL列表
-            start_index = -1
-            end_index = -1
-            for i, line in enumerate(lines):
-                if "XHS_SPECIFIED_NOTE_URL_LIST = [" in line:
-                    start_index = i
-                elif start_index != -1 and line.strip() == "]" and end_index == -1:
-                    end_index = i
-                    break
+            # 替换小红书笔记URL列表
+            config_content = re.sub(
+                r"XHS_SPECIFIED_NOTE_URL_LIST = \[.*?\]",
+                f'XHS_SPECIFIED_NOTE_URL_LIST = ["{url}"]',
+                config_content,
+                flags=re.DOTALL,
+            )
 
-            if start_index != -1 and end_index != -1:
-                lines[start_index] = "XHS_SPECIFIED_NOTE_URL_LIST = [\n"
-                lines[start_index + 1] = f'    "{url}"\n'
-                lines[start_index + 2] = "]\n"
-                for _ in range(end_index - start_index - 2):
-                    lines.pop(start_index + 3)
-                print(f"Updated XHS_SPECIFIED_NOTE_URL_LIST with URL: {url}")
-
-    # 更新数据目录配置
-    for i, line in enumerate(lines):
-        if line.startswith("DATA_DIR ="):
-            lines[i] = f'DATA_DIR = "{session.data_dir}"\n'
-        elif line.startswith("TRANSMIT_DIR ="):
-            lines[i] = f'TRANSMIT_DIR = "{session.transmit_dir}"\n'
-
-    # 创建会话特定的配置文件
-    session_config_path = os.path.join(session.config_dir, "base_config.py")
+    # 将修改后的配置写入会话特定的配置文件
     with open(session_config_path, "w", encoding="utf-8") as f:
-        f.writelines(lines)
+        f.write(config_content)
 
-    print(f"Created session config at: {session_config_path}")
     return session_config_path
+
+
+def extract_bv_id_from_url(url):
+    """
+    从B站URL中提取BV号
+    """
+    import re
+
+    # 匹配BV号的正则表达式
+    match = re.search(r"BV[0-9A-Za-z]+", url)
+    if match:
+        return match.group(0)
+    return None
 
 
 if __name__ == "__main__":
@@ -848,7 +961,7 @@ if __name__ == "__main__":
     Cconfig = CrawlerConfig(
         # logintype="cookie", platform="zhihu", crawlertype="question"
         logintype="cookie",
-        platform="bili",
+        platform="bilibili",
         crawlertype="detail",
     )
 

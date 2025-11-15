@@ -11,7 +11,6 @@ let currentTaskId = '';
 // 防止重复点击的标志
 let isSummarizing = false;
 let isAsking = false;
-let isBuildingModel = false;
 let isUploadingModel = false;
 
 // 任务轮询间隔
@@ -45,12 +44,11 @@ function attachEventListeners() {
             if (e.key === 'Enter') askQuestion();
         });
     }
-    if (elements.downloadBtn) {
-        elements.downloadBtn.addEventListener('click', downloadResult);
+    if (elements.downloadSimpleBtn) {
+        elements.downloadSimpleBtn.addEventListener('click', () => downloadResult('simple'));
     }
-    // 新增事件监听器
-    if (elements.buildModelBtn) {
-        elements.buildModelBtn.addEventListener('click', buildModel);
+    if (elements.downloadFullBtn) {
+        elements.downloadFullBtn.addEventListener('click', () => downloadResult('full'));
     }
     // 上传文件并构建模型的事件监听器
     if (elements.uploadModelBtn) {
@@ -150,7 +148,7 @@ async function runCrawler() {
     } catch (error) {
         updateStatus(elements.runStatus, '❌ ' + error.message, true);
         elements.runBtn.disabled = false;
-        elements.runBtn.textContent = '运行爬虫和生成模型';
+        elements.runBtn.textContent = '运行爬虫';
     }
 }
 
@@ -236,22 +234,22 @@ async function startTaskPolling(taskId) {
 // 处理任务完成
 function handleTaskCompleted(result) {
     if (elements.runStatus) {
-        updateStatus(elements.runStatus, '✅ 爬虫运行完成，请点击生成模型按钮生成模型');
+        updateStatus(elements.runStatus, '✅ 爬虫运行完成');
     }
 
     if (elements.runBtn) {
         elements.runBtn.disabled = false;
-        elements.runBtn.textContent = '运行爬虫和生成模型';
-    }
-
-    // 显示生成模型按钮
-    if (elements.buildModelSection) {
-        showElement(elements.buildModelSection);
+        elements.runBtn.textContent = '运行爬虫';
     }
 
     // 显示下载按钮
     if (elements.downloadSection) {
         showElement(elements.downloadSection);
+    }
+
+    // 显示结果区域
+    if (elements.resultSection) {
+        showElement(elements.resultSection);
     }
 }
 
@@ -263,7 +261,7 @@ function handleTaskError(result) {
 
     if (elements.runBtn) {
         elements.runBtn.disabled = false;
-        elements.runBtn.textContent = '运行爬虫和生成模型';
+        elements.runBtn.textContent = '运行爬虫';
     }
 }
 
@@ -275,7 +273,7 @@ function handleTaskCancelled(result) {
 
     if (elements.runBtn) {
         elements.runBtn.disabled = false;
-        elements.runBtn.textContent = '运行爬虫和生成模型';
+        elements.runBtn.textContent = '运行爬虫';
     }
 }
 
@@ -341,114 +339,6 @@ window.addEventListener('beforeunload', function() {
     stopHeartbeat();
 });
 
-
-// 生成模型
-async function buildModel() {
-    if (isBuildingModel) {
-        alert('模型生成已在进行中，请稍候...');
-        return;
-    }
-
-    if (!currentTaskId) {
-        alert('没有可生成模型的任务');
-        return;
-    }
-
-    isBuildingModel = true;
-
-    if (elements.buildModelBtn) {
-        elements.buildModelBtn.disabled = true;
-        elements.buildModelBtn.textContent = '生成中...';
-    }
-
-    if (elements.buildModelStatus) {
-        updateStatus(elements.buildModelStatus, '<span class="loading"></span>正在提交模型构建任务...');
-    }
-
-    try {
-        const result = await ApiClient.buildModel(currentTaskId);
-
-        if (result.success) {
-            if (elements.buildModelStatus) {
-                updateStatus(elements.buildModelStatus, '<span class="loading"></span>模型构建任务已提交，正在处理中...');
-            }
-
-            // 启动模型构建任务状态轮询
-            startBuildModelPolling(result.task_id);
-        } else {
-            throw new Error(result.message || '提交模型构建任务失败');
-        }
-    } catch (error) {
-        if (elements.buildModelStatus) {
-            updateStatus(elements.buildModelStatus, '❌ 提交模型构建任务出错: ' + error.message, true);
-        }
-        isBuildingModel = false;
-        if (elements.buildModelBtn) {
-            elements.buildModelBtn.disabled = false;
-            elements.buildModelBtn.textContent = '生成模型';
-        }
-    }
-}
-
-// 启动模型构建任务状态轮询
-async function startBuildModelPolling(taskId) {
-    console.log('开始轮询模型构建任务状态，任务ID:', taskId); // 添加调试日志
-    const pollingInterval = setInterval(async () => {
-        try {
-            const result = await ApiClient.getBuildModelStatus(taskId);
-            console.log('模型构建任务状态轮询结果:', result); // 添加调试日志
-
-            if (result.state === 'SUCCESS') {
-                console.log('模型构建任务成功完成'); // 添加调试日志
-                clearInterval(pollingInterval);
-                if (elements.buildModelStatus) {
-                    updateStatus(elements.buildModelStatus, '✅ ' + result.result.message);
-                }
-                // 显示结果区域和下载区域
-                if (elements.resultSection) {
-                    showElement(elements.resultSection);
-                }
-                if (elements.downloadSection) {
-                    showElement(elements.downloadSection);
-                }
-                isBuildingModel = false;
-                if (elements.buildModelBtn) {
-                    elements.buildModelBtn.disabled = false;
-                    elements.buildModelBtn.textContent = '生成模型';
-                }
-            } else if (result.state === 'FAILURE') {
-                console.log('模型构建任务失败'); // 添加调试日志
-                clearInterval(pollingInterval);
-                if (elements.buildModelStatus) {
-                    updateStatus(elements.buildModelStatus, '❌ 模型构建失败: ' + result.error, true);
-                }
-                isBuildingModel = false;
-                if (elements.buildModelBtn) {
-                    elements.buildModelBtn.disabled = false;
-                    elements.buildModelBtn.textContent = '生成模型';
-                }
-            } else {
-                // 任务仍在进行中
-                console.log('模型构建任务仍在进行中:', result.status); // 添加调试日志
-                if (elements.buildModelStatus) {
-                    const message = result.status || '模型构建任务进行中...';
-                    updateStatus(elements.buildModelStatus, `<span class="loading"></span>${message}`);
-                }
-            }
-        } catch (error) {
-            console.error('轮询模型构建任务状态失败:', error);
-            clearInterval(pollingInterval);
-            if (elements.buildModelStatus) {
-                updateStatus(elements.buildModelStatus, '❌ 轮询模型构建任务状态失败: ' + error.message, true);
-            }
-            isBuildingModel = false;
-            if (elements.buildModelBtn) {
-                elements.buildModelBtn.disabled = false;
-                elements.buildModelBtn.textContent = '生成模型';
-            }
-        }
-    }, POLLING_INTERVAL);
-}
 
 // 上传文件并构建模型
 async function uploadAndBuildModel() {
@@ -585,7 +475,19 @@ function toggleQASection() {
     }
 }
 
+// 下载结果
+async function downloadResult(downloadType) {
+    if (!currentTaskId) {
+        alert('没有可下载的任务');
+        return;
+    }
 
+    try {
+        await ApiClient.downloadResult(currentTaskId, downloadType);
+    } catch (error) {
+        alert('下载失败: ' + error.message);
+    }
+}
 
 // 提问
 async function askQuestion() {
@@ -663,7 +565,6 @@ async function askQuestion() {
     }
 }
 
-
 // 启动问答任务状态轮询
 async function startAskPolling(taskId, qaItem) {
     const answerElement = qaItem.querySelector('.answer');
@@ -706,21 +607,6 @@ async function startAskPolling(taskId, qaItem) {
             }
         }
     }, POLLING_INTERVAL);
-}
-
-
-// 下载结果
-async function downloadResult() {
-    if (!currentTaskId) {
-        alert('没有可下载的任务');
-        return;
-    }
-
-    try {
-        await ApiClient.downloadResult(currentTaskId);
-    } catch (error) {
-        alert('下载失败: ' + error.message);
-    }
 }
 
 // 总结内容

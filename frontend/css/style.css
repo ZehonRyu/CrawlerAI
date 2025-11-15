@@ -110,18 +110,6 @@ button:disabled {
     background-color: #d35400;
 }
 
-.btn-build-model {
-    background-color: #f39c12;
-    width: 100%;
-    padding: 15px;
-    font-size: 1.1em;
-    font-weight: bold;
-}
-
-.btn-build-model:hover {
-    background-color: #e67e22;
-}
-
 .result-section {
     display: none;
     margin-top: 20px;
@@ -197,38 +185,4 @@ button:disabled {
     border-top-color: #fff;
     animation: spin 1s ease-in-out infinite;
     margin-right: 10px;
-}
-
-/* 添加总结内容样式 */
-.summary-content {
-    margin: 20px 0;
-    padding: 15px;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    background-color: #f9f9f9;
-}
-
-.summary-text {
-    line-height: 1.6;
-    white-space: pre-wrap;
-}
-
-/* 确保.hidden类不会影响显示 */
-.hidden {
-    display: none !important;
-}
-
-
-@keyframes spin {
-    to { transform: rotate(360deg); }
-}
-
-#qrcode-container {
-    text-align: center;
-    margin: 20px 0;
-}
-
-#qrcode-image {
-    max-width: 300px;
-    height: auto;
 }

@@ -10,8 +10,8 @@ async def parse_cmd():
     parser.add_argument(
         "--platform",
         type=str,
-        help="Media platform select (xhs | dy | ks | bili | wb | tieba | zhihu)",  # 爬取平台
-        choices=["xhs", "dy", "ks", "bili", "wb", "tieba", "zhihu"],
+        help="Media platform select (xhs | dy | ks | bilibili | wb | tieba | zhihu)",  # 爬取平台
+        choices=["xhs", "dy", "ks", "bilibili", "wb", "tieba", "zhihu"],
         default=config.PLATFORM,
     )
     parser.add_argument(

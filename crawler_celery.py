@@ -35,14 +35,38 @@ celery_app.conf.update(
     # Windows兼容性配置
     worker_pool="solo" if sys.platform == "win32" else "prefork",
     # 确保任务可以被worker识别
-    imports=("main",),
+    imports=("crawler_celery",),
 )
 
-# 不要在这里直接导入任务，避免循环导入
-# 我们会在worker启动时导入
+
+# 定义任务
+@celery_app.task(bind=True, name="crawler_celery.run_crawler_internal")
+def run_crawler_internal(
+    self,
+    logintype: str,
+    platform: str,
+    crawlertype: str,
+    url: str = None,
+    task_type: str = None,
+):
+    """运行爬虫的Celery任务"""
+    # 导入main模块并执行函数
+    import main
+
+    return main.run_crawler_internal(
+        self, logintype, platform, crawlertype, url, task_type
+    )
+
+
+# 确保任务被导出
+__all__ = ["celery_app", "run_crawler_internal"]
+
+# 打印可用任务列表以供调试
+logger.info("Available tasks: %s", list(celery_app.tasks.keys()))
+logger.info(
+    "Task 'crawler_celery.run_crawler_internal' registered: %s",
+    "crawler_celery.run_crawler_internal" in celery_app.tasks,
+)
 
 if __name__ == "__main__":
-    # 启动worker时导入任务模块
-    from main import run_crawler_internal
-
     celery_app.start()

@@ -10,7 +10,7 @@ const taskConfigs = {
         'logintype': { label: '登录方式', type: 'select', options: ['cookie', 'qrcode'] },
         'video-url': { label: '视频链接', type: 'text', placeholder: '请输入B站视频链接' },
         'crawlertype': { label: '爬取类型', type: 'hidden', value: 'detail' },
-        'platform': { label: '平台', type: 'hidden', value: 'bili' }
+        'platform': { label: '平台', type: 'hidden', value: 'bilibili' }
     },
     'xhs-detail': {
         'logintype': { label: '登录方式', type: 'select', options: ['cookie', 'qrcode'] },

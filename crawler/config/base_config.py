@@ -1,3 +1,11 @@
+import os
+
+DATA_STORAGE_PATH = os.environ.get("DATA_STORAGE_PATH", "data")
+DATA_DIR = DATA_STORAGE_PATH
+
+# 确保目录存在
+os.makedirs(DATA_DIR, exist_ok=True)
+
 PLATFORM = "zhihu"
 KEYWORDS = "特斯拉"  # 关键词搜索配置，以英文逗号分隔
 ZHIHU_QUESTION_URL = "https://www.zhihu.com/question/597875487"  # 替换为实际的问题URL
@@ -5,7 +13,6 @@ LOGIN_TYPE = "qrcode"  # qrcode or phone or cookie
 COOKIES = ""
 # 具体值参见media_platform.xxx.field下的枚举值，暂时只支持小红书
 SORT_TYPE = "popularity_descending"
-# 具体值参见media_platform.xxx.field下的枚举值，暂时只支持抖音
 PUBLISH_TIME_TYPE = 0
 CRAWLER_TYPE = "search"  # 爬取类型，search(关键词搜索) | detail(帖子详情)| creator(创作者主页数据)
 # 自定义User Agent（暂时仅对XHS有效）
@@ -171,8 +178,8 @@ MIN_LIKE_COUNT = 1  # 最小点赞量
 AUDIO_STORE_DIR = "data/audios"
 
 # 多用户支持配置
-import os
+# import os
 
 WORK_DIR = os.getenv("CRAWLER_WORK_DIR", ".")
-DATA_DIR = f"{WORK_DIR}/data" if WORK_DIR != "." else "data"
+# DATA_DIR = f"{WORK_DIR}/data" if WORK_DIR != "." else "data"
 TRANSMIT_DIR = f"{WORK_DIR}/transmit_data" if WORK_DIR != "." else "transmit_data"

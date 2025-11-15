@@ -8,14 +8,9 @@ dashscope==1.23.1
 faster-whisper==1.1.1
 pydub==0.25.1
 opencc==1.1.9
-# 修改这些行，使用兼容的版本
 torch>=2.5.0
 torchaudio>=2.5.0
 torchvision>=0.20.0
-# 或者注释掉这些行，让pip自动选择兼容版本
-# torch==2.5.1
-# torchaudio==2.5.1
-# torchvision==0.20.1
 python-dotenv==1.0.1
 httpx==0.28.1
 selenium==4.31.0
@@ -31,3 +26,5 @@ jieba==0.42.1
 matplotlib==3.9.2
 wordcloud==1.9.3
 parsel==1.9.0
+redis==7.0.1
+celery==5.5.3

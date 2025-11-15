@@ -20,11 +20,8 @@ function initializeElements() {
         qrcodeImage: document.getElementById('qrcode-image'),
         qrcodeMessage: document.getElementById('qrcode-message'),
         downloadSection: document.getElementById('download-section'),
-        downloadBtn: document.getElementById('download-btn'),
-        // 新增元素
-        buildModelSection: document.getElementById('build-model-section'),
-        buildModelBtn: document.getElementById('build-model-btn'),
-        buildModelStatus: document.getElementById('build-model-status'),
+        downloadSimpleBtn: document.getElementById('download-simple-btn'),
+        downloadFullBtn: document.getElementById('download-full-btn'),
         // 上传文件相关元素
         platformType: document.getElementById('platform-type'),
         modelFile: document.getElementById('model-file'),

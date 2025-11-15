@@ -276,13 +276,25 @@ def execute_crawler(
         if session_id is None:
             session_id = task_id
 
-        # 异步执行爬虫任务
-        from main import run_crawler_internal
+        # 异步执行爬虫任务 - 直接从Celery应用获取任务对象
+        from crawler_celery import celery_app
+
+        # 检查任务是否已注册
+        logger.info("Available tasks in celery_app: %s", list(celery_app.tasks.keys()))
+
+        if "crawler_celery.run_crawler_internal" not in celery_app.tasks:
+            logger.error(
+                "Task 'crawler_celery.run_crawler_internal' is not registered!"
+            )
+            raise Exception(
+                "Task 'crawler_celery.run_crawler_internal' is not registered!"
+            )
+
+        # 获取任务对象
+        run_crawler_task = celery_app.tasks["crawler_celery.run_crawler_internal"]
 
         # 传递task_id给Celery任务
-        task = run_crawler_internal.delay(
-            logintype, platform, crawlertype, url, task_type
-        )
+        task = run_crawler_task.delay(logintype, platform, crawlertype, url, task_type)
 
         # 更新任务状态
         task_status_update = {
@@ -303,19 +315,7 @@ def execute_crawler(
     except Exception as e:
         task_status[task_id].update({"status": "error", "message": str(e)})
         logger.error(f"任务 {task_id} 提交失败: {str(e)}")
-
-
-def extract_bv_id_from_url(url):
-    """
-    从B站URL中提取BV号
-    """
-    import re
-
-    # 匹配BV号的正则表达式
-    match = re.search(r"BV[0-9A-Za-z]+", url)
-    if match:
-        return match.group(0)
-    return None
+        logger.exception(e)  # 打印完整异常堆栈
 
 
 def update_config_url(platform, crawlertype, url, task_type):
@@ -781,193 +781,287 @@ def download_result(task_id):
     根据任务ID下载对应的爬虫结果文件
     """
     try:
-        logger.info(f"Download request for task_id: {task_id}")
+        # 获取下载类型参数
+        download_type = request.args.get("type", "simple")  # simple or full
+        logger.info(f"Download request for task_id: {task_id}, type: {download_type}")
 
-        # 首先尝试通过任务ID映射查找文件
-        from main import task_file_mapping
-
-        mapped_file = task_file_mapping.get(task_id)
-        logger.info(f"Mapped file for task {task_id}: {mapped_file}")
-        if mapped_file and os.path.exists(mapped_file):
-            logger.info(f"Found mapped file for task {task_id}: {mapped_file}")
-            return send_file(
-                mapped_file,
-                as_attachment=True,
-                download_name=os.path.basename(mapped_file),
-            )
-
-        # 从任务状态中获取结果文件路径
-        task_info = task_status.get(task_id)
-        if task_info and "result_file" in task_info:
-            result_file = task_info["result_file"]
-            if os.path.exists(result_file):
-                logger.info(f"Found result file from task info: {result_file}")
-                # 更新映射以供下次快速查找
-                task_file_mapping[task_id] = result_file
-                return send_file(
-                    result_file,
-                    as_attachment=True,
-                    download_name=os.path.basename(result_file),
-                )
-
-        # 如果没有映射或文件不存在，尝试查找会话特定的传输目录
-        # 从任务状态中获取会话ID
-        logger.info(f"Task info: {task_info}")
-        if task_info and "session_id" in task_info:
-            session_id = task_info["session_id"]
-            session_transmit_dir = f"sessions/{session_id}/transmit_data"
-            logger.info(f"Using session_id from task_info: {session_id}")
+        if download_type == "full":
+            # 下载完整结果
+            return download_full_result(task_id)
         else:
-            # 回退到使用任务ID作为会话ID
-            session_transmit_dir = f"sessions/{task_id}/transmit_data"
-            logger.info(f"Using task_id as session_id: {task_id}")
-
-        logger.info(f"Checking session transmit directory: {session_transmit_dir}")
-
-        if os.path.exists(session_transmit_dir):
-            logger.info(f"Found session transmit directory: {session_transmit_dir}")
-            # 查找会话特定传输目录中的文件
-            try:
-                files_in_session_dir = os.listdir(session_transmit_dir)
-                logger.info(
-                    f"Files in session transmit directory: {files_in_session_dir}"
-                )
-
-                if files_in_session_dir:
-                    # 优先查找与任务ID精确匹配的文件
-                    for file in files_in_session_dir:
-                        if task_id in file and file.endswith(".json"):
-                            file_path = os.path.join(session_transmit_dir, file)
-                            if os.path.exists(file_path):
-                                logger.info(f"Found session-specific file: {file_path}")
-                                # 更新映射以供下次快速查找
-                                task_file_mapping[task_id] = file_path
-                                return send_file(
-                                    file_path,
-                                    as_attachment=True,
-                                    download_name=os.path.basename(file_path),
-                                )
-
-                    # 如果没有找到精确匹配的文件，返回最新的文件
-                    file_times = []
-                    for file in files_in_session_dir:
-                        if file.endswith(".json"):
-                            file_path = os.path.join(session_transmit_dir, file)
-                            if os.path.exists(file_path):
-                                file_times.append(
-                                    (file_path, os.path.getmtime(file_path))
-                                )
-
-                    if file_times:
-                        # 按修改时间排序，获取最新的文件
-                        file_times.sort(key=lambda x: x[1], reverse=True)
-                        file_path = file_times[0][0]
-                        logger.info(
-                            f"Found latest file in session directory: {file_path}"
-                        )
-                        # 更新映射以供下次快速查找
-                        task_file_mapping[task_id] = file_path
-                        return send_file(
-                            file_path,
-                            as_attachment=True,
-                            download_name=os.path.basename(file_path),
-                        )
-            except Exception as e:
-                logger.error(f"Error reading session transmit directory: {e}")
-        else:
-            logger.info(
-                f"Session transmit directory does not exist: {session_transmit_dir}"
-            )
-
-        # 如果会话特定目录中没有找到，回退到原来的查找逻辑
-        # 从任务状态中获取平台信息
-        if not task_info:
-            logger.error(f"Task not found: {task_id}")
-            return jsonify({"success": False, "message": "任务不存在"}), 404
-
-        # 获取平台信息
-        platform = task_info.get("platform")
-        logintype = task_info.get("logintype")
-        crawlertype = task_info.get("crawlertype")
-
-        logger.info(f"Task info - platform: {platform}, crawlertype: {crawlertype}")
-
-        if not platform or not logintype or not crawlertype:
-            logger.error(f"Incomplete task info for task_id: {task_id}")
-            return jsonify({"success": False, "message": "任务信息不完整"}), 400
-
-        # 查找传输目录中的文件
-        transmit_dir = "transmit_data"
-        logger.info(f"Checking default transmit directory: {transmit_dir}")
-        if not os.path.exists(transmit_dir):
-            logger.error(f"Transmit directory does not exist: {transmit_dir}")
-            # 列出当前目录内容帮助调试
-            try:
-                current_dir_contents = os.listdir(".")
-                logger.info(f"Current directory contents: {current_dir_contents}")
-            except Exception as e:
-                logger.error(f"Error listing current directory: {e}")
-            # 尝试创建目录
-            try:
-                os.makedirs(transmit_dir, exist_ok=True)
-                logger.info(f"Created transmit directory: {transmit_dir}")
-            except Exception as e:
-                logger.error(f"Failed to create transmit directory: {e}")
-                return jsonify({"success": False, "message": "传输目录不存在且无法创建"}), 404
-
-        # 查找与任务ID匹配的文件
-        target_files = []
-        for file in os.listdir(transmit_dir):
-            if task_id in file and file.endswith(".json"):
-                file_path = os.path.join(transmit_dir, file)
-                target_files.append((file_path, os.path.getmtime(file_path)))
-
-        # 如果没找到与任务ID匹配的文件，尝试查找与爬虫类型匹配的文件
-        if not target_files:
-            today = datetime.now().strftime("%Y-%m-%d")
-            for file in os.listdir(transmit_dir):
-                if (
-                    file.startswith(f"{crawlertype}_")
-                    and today in file
-                    and file.endswith(".json")
-                ):
-                    file_path = os.path.join(transmit_dir, file)
-                    target_files.append((file_path, os.path.getmtime(file_path)))
-
-        # 如果仍然没找到文件
-        if not target_files:
-            all_files = os.listdir(transmit_dir) if os.path.exists(transmit_dir) else []
-            logger.error(f"No matching files found. Files in transmit_dir: {all_files}")
-            return (
-                jsonify(
-                    {"success": False, "message": f"未找到传输文件。传输目录中的文件: {all_files}"}
-                ),
-                404,
-            )
-
-        # 按修改时间排序，获取最新的文件
-        target_files.sort(key=lambda x: x[1], reverse=True)
-        file_path = target_files[0][0]
-        logger.info(f"Found file for download: {file_path}")
-
-        # 检查文件是否存在
-        if not os.path.exists(file_path):
-            logger.error(f"File does not exist: {file_path}")
-            return jsonify({"success": False, "message": "传输后的文件不存在"}), 404
-
-        # 提供文件下载
-        logger.info(f"Sending file: {file_path}")
-        # 更新映射以供下次快速查找
-        task_file_mapping[task_id] = file_path
-        return send_file(
-            file_path, as_attachment=True, download_name=os.path.basename(file_path)
-        )
+            # 下载简洁结果（原有逻辑）
+            return download_simple_result(task_id)
     except Exception as e:
         logger.error(f"下载文件时出错: {str(e)}")
         import traceback
 
         traceback.print_exc()
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+def download_simple_result(task_id):
+    """下载简洁结果（处理后的JSON文件）"""
+    logger.info(f"Download simple result for task_id: {task_id}")
+
+    # 首先尝试通过任务ID映射查找文件
+    from main import task_file_mapping
+
+    mapped_file = task_file_mapping.get(task_id)
+    logger.info(f"Mapped file for task {task_id}: {mapped_file}")
+    if mapped_file and os.path.exists(mapped_file):
+        logger.info(f"Found mapped file for task {task_id}: {mapped_file}")
+        return send_file(
+            mapped_file,
+            as_attachment=True,
+            download_name=os.path.basename(mapped_file),
+        )
+
+    # 从任务状态中获取结果文件路径
+    task_info = task_status.get(task_id)
+    if task_info and "result_file" in task_info:
+        result_file = task_info["result_file"]
+        if os.path.exists(result_file):
+            logger.info(f"Found result file from task info: {result_file}")
+            # 更新映射以供下次快速查找
+            task_file_mapping[task_id] = result_file
+            return send_file(
+                result_file,
+                as_attachment=True,
+                download_name=os.path.basename(result_file),
+            )
+
+    # 如果没有映射或文件不存在，尝试查找会话特定的传输目录
+    # 从任务状态中获取会话ID
+    logger.info(f"Task info: {task_info}")
+    if task_info and "session_id" in task_info:
+        session_id = task_info["session_id"]
+        session_transmit_dir = f"sessions/{session_id}/transmit_data"
+        logger.info(f"Using session_id from task_info: {session_id}")
+    else:
+        # 回退到使用任务ID作为会话ID
+        session_transmit_dir = f"sessions/{task_id}/transmit_data"
+        logger.info(f"Using task_id as session_id: {task_id}")
+
+    logger.info(f"Checking session transmit directory: {session_transmit_dir}")
+
+    if os.path.exists(session_transmit_dir):
+        logger.info(f"Found session transmit directory: {session_transmit_dir}")
+        # 查找会话特定传输目录中的文件
+        try:
+            files_in_session_dir = os.listdir(session_transmit_dir)
+            logger.info(f"Files in session transmit directory: {files_in_session_dir}")
+
+            if files_in_session_dir:
+                # 优先查找与任务ID精确匹配的文件
+                for file in files_in_session_dir:
+                    if task_id in file and file.endswith(".json"):
+                        file_path = os.path.join(session_transmit_dir, file)
+                        if os.path.exists(file_path):
+                            logger.info(f"Found session-specific file: {file_path}")
+                            # 更新映射以供下次快速查找
+                            task_file_mapping[task_id] = file_path
+                            return send_file(
+                                file_path,
+                                as_attachment=True,
+                                download_name=os.path.basename(file_path),
+                            )
+
+                # 如果没有找到精确匹配的文件，返回最新的文件
+                file_times = []
+                for file in files_in_session_dir:
+                    if file.endswith(".json"):
+                        file_path = os.path.join(session_transmit_dir, file)
+                        if os.path.exists(file_path):
+                            file_times.append((file_path, os.path.getmtime(file_path)))
+
+                if file_times:
+                    # 按修改时间排序，获取最新的文件
+                    file_times.sort(key=lambda x: x[1], reverse=True)
+                    file_path = file_times[0][0]
+                    logger.info(f"Found latest file in session directory: {file_path}")
+                    # 更新映射以供下次快速查找
+                    task_file_mapping[task_id] = file_path
+                    return send_file(
+                        file_path,
+                        as_attachment=True,
+                        download_name=os.path.basename(file_path),
+                    )
+        except Exception as e:
+            logger.error(f"Error reading session transmit directory: {e}")
+    else:
+        logger.info(
+            f"Session transmit directory does not exist: {session_transmit_dir}"
+        )
+
+    # 如果会话特定目录中没有找到，回退到原来的查找逻辑
+    # 从任务状态中获取平台信息
+    if not task_info:
+        logger.error(f"Task not found: {task_id}")
+        return jsonify({"success": False, "message": "任务不存在"}), 404
+
+    # 获取平台信息
+    platform = task_info.get("platform")
+    logintype = task_info.get("logintype")
+    crawlertype = task_info.get("crawlertype")
+
+    logger.info(f"Task info - platform: {platform}, crawlertype: {crawlertype}")
+
+    if not platform or not logintype or not crawlertype:
+        logger.error(f"Incomplete task info for task_id: {task_id}")
+        return jsonify({"success": False, "message": "任务信息不完整"}), 400
+
+    # 查找传输目录中的文件
+    transmit_dir = "transmit_data"
+    logger.info(f"Checking default transmit directory: {transmit_dir}")
+    if not os.path.exists(transmit_dir):
+        logger.error(f"Transmit directory does not exist: {transmit_dir}")
+        # 列出当前目录内容帮助调试
+        try:
+            current_dir_contents = os.listdir(".")
+            logger.info(f"Current directory contents: {current_dir_contents}")
+        except Exception as e:
+            logger.error(f"Error listing current directory: {e}")
+        # 尝试创建目录
+        try:
+            os.makedirs(transmit_dir, exist_ok=True)
+            logger.info(f"Created transmit directory: {transmit_dir}")
+        except Exception as e:
+            logger.error(f"Failed to create transmit directory: {e}")
+            return jsonify({"success": False, "message": "传输目录不存在且无法创建"}), 404
+
+    # 查找与任务ID匹配的文件
+    target_files = []
+    for file in os.listdir(transmit_dir):
+        if task_id in file and file.endswith(".json"):
+            file_path = os.path.join(transmit_dir, file)
+            target_files.append((file_path, os.path.getmtime(file_path)))
+
+    # 如果没找到与任务ID匹配的文件，尝试查找与爬虫类型匹配的文件
+    if not target_files:
+        today = datetime.now().strftime("%Y-%m-%d")
+        for file in os.listdir(transmit_dir):
+            if (
+                file.startswith(f"{crawlertype}_")
+                and today in file
+                and file.endswith(".json")
+            ):
+                file_path = os.path.join(transmit_dir, file)
+                target_files.append((file_path, os.path.getmtime(file_path)))
+
+    # 如果仍然没找到文件
+    if not target_files:
+        all_files = os.listdir(transmit_dir) if os.path.exists(transmit_dir) else []
+        logger.error(f"No matching files found. Files in transmit_dir: {all_files}")
+        return (
+            jsonify({"success": False, "message": f"未找到传输文件。传输目录中的文件: {all_files}"}),
+            404,
+        )
+
+    # 按修改时间排序，获取最新的文件
+    target_files.sort(key=lambda x: x[1], reverse=True)
+    file_path = target_files[0][0]
+    logger.info(f"Found file for download: {file_path}")
+
+    # 检查文件是否存在
+    if not os.path.exists(file_path):
+        logger.error(f"File does not exist: {file_path}")
+        return jsonify({"success": False, "message": "传输后的文件不存在"}), 404
+
+    # 提供文件下载
+    logger.info(f"Sending file: {file_path}")
+    # 更新映射以供下次快速查找
+    task_file_mapping[task_id] = file_path
+    return send_file(
+        file_path, as_attachment=True, download_name=os.path.basename(file_path)
+    )
+
+
+def download_full_result(task_id):
+    """下载完整结果（所有爬取的文件，打包为ZIP）"""
+    logger.info(f"Download full result for task_id: {task_id}")
+
+    # 从任务状态中获取会话ID
+    task_info = task_status.get(task_id)
+    if not task_info:
+        logger.error(f"Task not found: {task_id}")
+        return jsonify({"success": False, "message": "任务不存在"}), 404
+
+    session_id = task_info.get("session_id", task_id)
+    platform = task_info.get("platform")
+
+    if not platform:
+        logger.error(f"Incomplete task info for task_id: {task_id}")
+        return jsonify({"success": False, "message": "任务信息不完整"}), 400
+
+    # 按优先级确定要打包的目录
+    data_dirs_to_check = [
+        f"sessions/{session_id}/data/{platform}",  # 会话特定平台数据目录
+        f"sessions/{session_id}/data",  # 会话特定数据目录
+        f"data/{platform}",  # 全局平台数据目录
+        "data",  # 全局数据目录
+    ]
+
+    data_dir_to_use = None
+    for data_dir in data_dirs_to_check:
+        if os.path.exists(data_dir) and os.listdir(data_dir):
+            data_dir_to_use = data_dir
+            logger.info(f"Found data directory to use: {data_dir_to_use}")
+            break
+
+    if not data_dir_to_use:
+        logger.error(
+            f"No data directory found for task {task_id} or all directories are empty"
+        )
+        return jsonify({"success": False, "message": "未找到爬取的数据或数据目录为空"}), 404
+
+    # 创建临时ZIP文件
+    import tempfile
+    import zipfile
+
+    temp_dir = tempfile.mkdtemp()
+    zip_filename = f"{task_id}_full_result.zip"
+    zip_filepath = os.path.join(temp_dir, zip_filename)
+
+    try:
+        # 创建ZIP文件
+        with zipfile.ZipFile(zip_filepath, "w", zipfile.ZIP_DEFLATED) as zipf:
+            # 遍历目录中的所有文件
+            for root, dirs, files in os.walk(data_dir_to_use):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    # 计算相对路径用于ZIP文件中的路径
+                    arc_path = os.path.relpath(
+                        file_path, os.path.dirname(data_dir_to_use)
+                    )
+                    # 确保路径不以..开头（避免路径穿越问题）
+                    if not arc_path.startswith(".."):
+                        zipf.write(file_path, arc_path)
+                        logger.info(f"Added file to zip: {file_path} as {arc_path}")
+
+        # 检查ZIP文件是否为空
+        with zipfile.ZipFile(zip_filepath, "r") as zipf:
+            if not zipf.namelist():
+                logger.error("Created ZIP file is empty")
+                return jsonify({"success": False, "message": "创建的ZIP文件为空"}), 500
+
+        # 发送ZIP文件
+        logger.info(f"Sending ZIP file: {zip_filepath}")
+        return send_file(zip_filepath, as_attachment=True, download_name=zip_filename)
+    except Exception as e:
+        logger.error(f"Error creating ZIP file: {str(e)}")
+        import traceback
+
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return jsonify({"success": False, "message": f"创建ZIP文件失败: {str(e)}"}), 500
+    finally:
+        # 清理临时文件
+        try:
+            import shutil
+
+            shutil.rmtree(temp_dir)
+            logger.info(f"Cleaned up temporary directory: {temp_dir}")
+        except Exception as e:
+            logger.error(f"Error cleaning up temporary directory: {str(e)}")
 
 
 @app.route("/api/qrcode/<task_id>", methods=["GET"])

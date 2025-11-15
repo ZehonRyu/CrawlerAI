@@ -75,7 +75,7 @@ class CrawlerFactory:
         "xhs": XiaoHongShuCrawler,
         "dy": DouYinCrawler,
         "ks": KuaishouCrawler,
-        "bili": BilibiliCrawler,
+        "bilibili": BilibiliCrawler,
         "wb": WeiboCrawler,
         "tieba": TieBaCrawler,
         "zhihu": ZhihuCrawler,
@@ -86,7 +86,7 @@ class CrawlerFactory:
         crawler_class = CrawlerFactory.CRAWLERS.get(platform)
         if not crawler_class:
             raise ValueError(
-                "Invalid Media Platform Currently only supported xhs or dy or ks or bili ..."
+                "Invalid Media Platform Currently only supported xhs or dy or ks or bilibili ..."
             )
         return crawler_class()
 

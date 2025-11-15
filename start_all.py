@@ -31,7 +31,7 @@ def start_celery_worker(app_name, log_level="info"):
                 app_name,
                 "worker",
                 f"--loglevel={log_level}",
-                "--pool=solo",
+                "--pool=solo",  # Windows兼容性
                 "--without-gossip",
                 "--without-mingle",
             ]

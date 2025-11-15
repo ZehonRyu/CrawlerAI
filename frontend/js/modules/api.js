@@ -200,10 +200,10 @@ static async askQuestion(question, modelName) {
         }
     }
 
-    static async downloadResult(taskId) {
+    static async downloadResult(taskId, downloadType = 'simple') {
         try {
-            // 直接发起下载请求
-            const response = await fetch(`${this.BASE_URL}/download/${taskId}`);
+            // 发起下载请求，添加下载类型参数
+            const response = await fetch(`${this.BASE_URL}/download/${taskId}?type=${downloadType}`);
 
             if (!response.ok) {
                 const errorData = await response.json();
@@ -212,7 +212,7 @@ static async askQuestion(question, modelName) {
 
             // 获取文件名
             const contentDisposition = response.headers.get('Content-Disposition');
-            let filename = 'result.json';
+            let filename = downloadType === 'full' ? 'full_result.zip' : 'result.json';
             if (contentDisposition) {
                 const filenameMatch = contentDisposition.match(/filename="?(.+)"?/);
                 if (filenameMatch && filenameMatch.length === 2) {
