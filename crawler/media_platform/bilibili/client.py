@@ -30,18 +30,6 @@ class BilibiliClient(AbstractApiClient):
         self.playwright_page = playwright_page
         self.cookie_dict = cookie_dict
 
-    # async def request(self, method, url, **kwargs) -> Any:
-    #     async with httpx.AsyncClient(proxies=self.proxies) as client:
-    #         response = await client.request(
-    #             method, url, timeout=self.timeout,
-    #             **kwargs
-    #         )
-    #     data: Dict = response.json()
-    #     if data.get("code") != 0:
-    #         raise DataFetchError(data.get("message", "unkonw error"))
-    #     else:
-    #         return data.get("data", {})
-
     async def request(self, method, url, **kwargs) -> Any:
         # 创建请求参数字典
         request_kwargs = {
@@ -243,17 +231,7 @@ class BilibiliClient(AbstractApiClient):
 
         return await self.get(uri, params, enable_params_sign=True)
 
-    # async def get_video_media(self, url: str) -> Union[bytes, None]:
-    #     async with httpx.AsyncClient(proxies=self.proxies) as client:
-    #         response = await client.request("GET", url, timeout=self.timeout, headers=self.headers)
-    #         if not response.reason_phrase == "OK":
-    #             utils.logger.error(f"[BilibiliClient.get_video_media] request {url} err, res:{response.text}")
-    #             return None
-    #         else:
-    #             return response.content
-
     async def get_video_media(self, video_url: str) -> Optional[bytes]:
-        # 移除 proxies 参数
         async with httpx.AsyncClient() as client:
             response = await client.get(
                 video_url, headers=self.headers, timeout=60  # 保留必要的 headers

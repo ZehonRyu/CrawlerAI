@@ -201,13 +201,13 @@ class ZhihuJsonStoreImplement(AbstractStore):
         crawler_type = crawler_type_var.get() or config.CRAWLER_TYPE or "question"
         current_date = utils.get_current_date()
 
-        print(
+        utils.logger.debug(
             f"make_save_file_name - Task ID: '{task_id}' (type: {type(task_id)})"
         )  # 添加调试信息
-        print(
+        utils.logger.debug(
             f"make_save_file_name - Crawler type: '{crawler_type}' (type: {type(crawler_type)})"
         )  # 添加调试信息
-        print(
+        utils.logger.debug(
             f"make_save_file_name - Current date: '{current_date}' (type: {type(current_date)})"
         )  # 添加调试信息
 
@@ -218,7 +218,9 @@ class ZhihuJsonStoreImplement(AbstractStore):
             crawler_type = "question"
 
         file_name = f"{crawler_type}_{store_type}_{current_date}_{task_id}.json"
-        print(f"make_save_file_name - Final file name: {file_name}")  # 添加调试信息
+        utils.logger.debug(
+            f"make_save_file_name - Final file name: {file_name}"
+        )  # 添加调试信息
 
         return (
             f"{self.json_store_path}/{file_name}",
@@ -235,31 +237,52 @@ class ZhihuJsonStoreImplement(AbstractStore):
         Returns:
 
         """
-        pathlib.Path(self.json_store_path).mkdir(parents=True, exist_ok=True)
-        pathlib.Path(self.words_store_path).mkdir(parents=True, exist_ok=True)
-        save_file_name, words_file_name_prefix = self.make_save_file_name(
-            store_type=store_type
-        )
-        save_data = []
+        try:
+            pathlib.Path(self.json_store_path).mkdir(parents=True, exist_ok=True)
+            pathlib.Path(self.words_store_path).mkdir(parents=True, exist_ok=True)
+            save_file_name, words_file_name_prefix = self.make_save_file_name(
+                store_type=store_type
+            )
+            utils.logger.debug(
+                f"[ZhihuJsonStoreImplement.save_data_to_json] 保存文件路径: {save_file_name}"
+            )
+            save_data = []
 
-        async with self.lock:
-            if os.path.exists(save_file_name):
-                async with aiofiles.open(save_file_name, "r", encoding="utf-8") as file:
-                    save_data = json.loads(await file.read())
+            async with self.lock:
+                if os.path.exists(save_file_name):
+                    async with aiofiles.open(
+                        save_file_name, "r", encoding="utf-8"
+                    ) as file:
+                        content = await file.read()
+                        if content:
+                            save_data = json.loads(content)
 
-            save_data.append(save_item)
-            async with aiofiles.open(save_file_name, "w", encoding="utf-8") as file:
-                await file.write(json.dumps(save_data, ensure_ascii=False, indent=4))
-
-            if config.ENABLE_GET_COMMENTS and config.ENABLE_GET_WORDCLOUD:
-                try:
-                    await self.WordCloud.generate_word_frequency_and_cloud(
-                        save_data, words_file_name_prefix
+                save_data.append(save_item)
+                async with aiofiles.open(save_file_name, "w", encoding="utf-8") as file:
+                    await file.write(
+                        json.dumps(save_data, ensure_ascii=False, indent=4)
                     )
-                except Exception as e:
-                    utils.logger.error(
-                        f"[ZhihuJsonStoreImplement.save_data_to_json] Error generating word cloud: {e}"
-                    )
+
+                if config.ENABLE_GET_COMMENTS and config.ENABLE_GET_WORDCLOUD:
+                    try:
+                        await self.WordCloud.generate_word_frequency_and_cloud(
+                            save_data, words_file_name_prefix
+                        )
+                    except Exception as e:
+                        utils.logger.error(
+                            f"[ZhihuJsonStoreImplement.save_data_to_json] Error generating word cloud: {e}"
+                        )
+
+        except Exception as e:
+            utils.logger.error(
+                f"[ZhihuJsonStoreImplement.save_data_to_json] 保存数据到JSON时出错: {e}"
+            )
+            import traceback
+
+            utils.logger.error(
+                f"[ZhihuJsonStoreImplement.save_data_to_json] 错误追踪: {traceback.format_exc()}"
+            )
+            raise
 
     async def store_content(self, content_item: Dict):
         """

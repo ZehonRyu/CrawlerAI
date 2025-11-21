@@ -179,7 +179,7 @@ def run_crawler():
 
         return jsonify({"success": True, "task_id": task_id, "message": "任务已启动"})
     except Exception as e:
-        logger.error(f"运行爬虫时出错: {str(e)}")
+        logger.error(f"运行爬虫时出错:0 {str(e)}")
         return jsonify({"success": False, "message": str(e)}), 500
 
 

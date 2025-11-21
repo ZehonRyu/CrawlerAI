@@ -19,27 +19,45 @@ def check_redis():
         return False
 
 
-def start_celery_worker(app_name, log_level="info"):
-    """启动Celery worker"""
+def start_celery_worker_direct():
+    """直接启动Celery worker，显式包含模块"""
     try:
-        process = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "celery",
-                "-A",
-                app_name,
-                "worker",
-                f"--loglevel={log_level}",
-                "--pool=solo",  # Windows兼容性
-                "--without-gossip",
-                "--without-mingle",
-            ]
-        )
-        print(f"✓ {app_name} worker已启动 (PID: {process.pid})")
+        # 构建完整的命令行参数
+        cmd = [
+            sys.executable,
+            "-m",
+            "celery",
+            "-A",
+            "crawler_celery",
+            "worker",
+            "--loglevel=info",
+            "--pool=solo",  # Windows兼容性
+            "--without-gossip",
+            "--without-mingle",
+        ]
+
+        # 设置环境变量确保模块可以被正确导入
+        env = os.environ.copy()
+        project_root = os.path.dirname(os.path.abspath(__file__))
+
+        # 添加项目根目录到PYTHONPATH
+        current_pythonpath = env.get("PYTHONPATH", "")
+        if current_pythonpath:
+            env["PYTHONPATH"] = project_root + os.pathsep + current_pythonpath
+        else:
+            env["PYTHONPATH"] = project_root
+
+        print(f"使用PYTHONPATH: {env['PYTHONPATH']}")
+        print(f"执行命令: {' '.join(cmd)}")
+
+        process = subprocess.Popen(cmd, env=env, cwd=project_root)
+        print(f"✓ crawler_celery worker已启动 (PID: {process.pid})")
         return process
     except Exception as e:
-        print(f"✗ 启动{app_name} worker失败: {e}")
+        print(f"✗ 启动crawler_celery worker失败: {e}")
+        import traceback
+
+        traceback.print_exc()
         return None
 
 
@@ -67,17 +85,10 @@ def main():
     try:
         # 启动爬虫worker
         print("\n正在启动爬虫worker...")
-        crawler_process = start_celery_worker("crawler_celery")
+        crawler_process = start_celery_worker_direct()
         if crawler_process:
             processes.append(crawler_process)
-            time.sleep(3)  # 等待worker启动
-
-        # 启动AI worker
-        print("\n正在启动AI worker...")
-        ai_process = start_celery_worker("ai_celery")
-        if ai_process:
-            processes.append(ai_process)
-            time.sleep(3)  # 等待worker启动
+            time.sleep(5)  # 增加等待时间确保worker完全启动
 
         # 启动Flask应用
         print("\n正在启动Flask应用...")
@@ -99,23 +110,12 @@ def main():
                     process.wait()
         except KeyboardInterrupt:
             print("\n\n正在停止所有服务...")
-            for process in processes:
-                if process and process.poll() is None:
-                    process.terminate()
-
-            # 等待进程结束
-            for process in processes:
-                if process:
-                    try:
-                        process.wait(timeout=5)
-                    except subprocess.TimeoutExpired:
-                        process.kill()
-                        process.wait()
-
-            print("所有服务已停止")
 
     except Exception as e:
         print(f"启动过程中出现错误: {e}")
+        import traceback
+
+        traceback.print_exc()
         # 清理已启动的进程
         for process in processes:
             if process and process.poll() is None:

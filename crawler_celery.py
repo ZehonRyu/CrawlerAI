@@ -9,9 +9,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 添加项目路径
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+
+logger.info(f"项目根目录: {project_root}")
+logger.info(f"Python路径: {sys.path}")
 
 # 创建Celery实例
 celery_app = Celery("crawler_tasks")
@@ -36,6 +39,10 @@ celery_app.conf.update(
     worker_pool="solo" if sys.platform == "win32" else "prefork",
     # 确保任务可以被worker识别
     imports=("crawler_celery",),
+    # 包含所有可能的任务模块
+    include=[
+        "crawler_celery",
+    ],
 )
 
 

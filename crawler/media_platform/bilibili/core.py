@@ -328,24 +328,6 @@ class BilibiliCrawler(AbstractCrawler):
                     f"[BilibiliCrawler.get_comments] may be been blocked, err:{e}"
                 )
 
-    # async def get_creator_videos(self, creator_id: int):
-    #     """
-    #     get videos for a creator
-    #     :return:
-    #     """
-    #     ps = 30
-    #     pn = 1
-    #     video_bvids_list = []
-    #     while True:
-    #         result = await self.bili_client.get_creator_videos(creator_id, pn, ps)
-    #         for video in result["list"]["vlist"]:
-    #             video_bvids_list.append(video["bvid"])
-    #         if (int(result["page"]["count"]) >= pn * ps):
-    #             break
-    #         await asyncio.sleep(random.random())
-    #         pn += 1
-    #     await self.get_specified_videos(video_bvids_list)
-
     async def get_creator_videos(self, creator_id: int):
         ps = 30  # 每页数量
         pn = 1  # 起始页码
@@ -389,6 +371,9 @@ class BilibiliCrawler(AbstractCrawler):
         get specified videos info
         :return:
         """
+        utils.logger.info(
+            f"[BilibiliCrawler.get_specified_videos] Processing video list: {bvids_list}"
+        )
         semaphore = asyncio.Semaphore(config.MAX_CONCURRENCY_NUM)
         task_list = [
             self.get_video_info_task(aid=0, bvid=video_id, semaphore=semaphore)
@@ -405,6 +390,9 @@ class BilibiliCrawler(AbstractCrawler):
                 await bilibili_store.update_bilibili_video(video_detail)
                 await bilibili_store.update_up_info(video_detail)
                 await self.get_bilibili_video(video_detail, semaphore)
+        utils.logger.info(
+            f"[BilibiliCrawler.get_specified_videos] Finished processing {len(video_details)} videos, successfully processed {len(video_aids_list)} videos"
+        )
         await self.batch_get_video_comments(video_aids_list)
 
     async def get_creator_audio(self, creator_id: int):
@@ -435,12 +423,10 @@ class BilibiliCrawler(AbstractCrawler):
                     utils.logger.info(f"创作者 {creator_id} 总视频数: {total_videos}")
 
                 current_videos = result["list"]["vlist"]
-                # print("-=-=-=----4444444-------", current_videos)
                 for video in current_videos:
                     # 添加过滤条件（可选）
                     if self.should_download_video(video):
                         video_bvids_list.append(video["bvid"])
-                # print(video_bvids_list, "-=-=-=-----------")
                 if not current_videos or len(video_bvids_list) >= total_videos:
                     break
 
@@ -696,13 +682,21 @@ class BilibiliCrawler(AbstractCrawler):
         video_item_view: Dict = video_item.get("View")
         aid = video_item_view.get("aid")
         cid = video_item_view.get("cid")
+        # 添加调试语句 - 开始处理视频
+        utils.logger.info(
+            f"[BilibiliCrawler.get_bilibili_video] Starting video download for aid: {aid}, cid: {cid}"
+        )
         result = await self.get_video_play_url_task(aid, cid, semaphore)
         if result is None:
             utils.logger.info(
                 "[BilibiliCrawler.get_bilibili_video] get video play url failed"
             )
             return
+        # 添加调试语句 - 成功获取播放URL
         durl_list = result.get("durl")
+        utils.logger.info(
+            f"[BilibiliCrawler.get_bilibili_video] Got video play url result, durl_list length: {len(durl_list) if durl_list else 0}"
+        )
         max_size = -1
         video_url = ""
         for durl in durl_list:
@@ -715,8 +709,20 @@ class BilibiliCrawler(AbstractCrawler):
                 "[BilibiliCrawler.get_bilibili_video] get video url failed"
             )
             return
+        # 添加调试语句 - 选择最佳视频
+        utils.logger.info(
+            f"[BilibiliCrawler.get_bilibili_video] Selected video url with size: {max_size}"
+        )
 
+        # 添加调试语句 - 开始下载视频
+        utils.logger.info(
+            f"[BilibiliCrawler.get_bilibili_video] Starting to download video content from url: {video_url}"
+        )
         content = await self.bili_client.get_video_media(video_url)
+        # 添加调试语句 - 下载完成
+        utils.logger.info(
+            f"[BilibiliCrawler.get_bilibili_video] Video content downloaded, content size: {len(content) if content else 0} bytes"
+        )
         if content is None:
             return
         extension_file_name = f"video.mp4"

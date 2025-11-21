@@ -179,10 +179,22 @@ class BiliDbStoreImplement(AbstractStore):
 
 
 class BiliJsonStoreImplement(AbstractStore):
-    json_store_path: str = "data/bilibili/json"
-    words_store_path: str = "data/bilibili/words"
+    def __init__(self):
+        # 使用配置中的数据目录，而不是硬编码
+        import config
+
+        base_data_dir = getattr(config, "DATA_DIR", "data")
+        self.json_store_path: str = f"{base_data_dir}/bilibili/json"
+        self.words_store_path: str = f"{base_data_dir}/bilibili/words"
+
+        # 确保目录存在
+        import os
+
+        os.makedirs(self.json_store_path, exist_ok=True)
+        os.makedirs(self.words_store_path, exist_ok=True)
+
     lock = asyncio.Lock()
-    file_count: int = calculate_number_of_files(json_store_path)
+    file_count: int = 0  # 初始化为0，将在使用时计算
     WordCloud = words.AsyncWordCloudGenerator()
 
     def make_save_file_name(self, store_type: str) -> (str, str):
@@ -194,6 +206,12 @@ class BiliJsonStoreImplement(AbstractStore):
         Returns:
 
         """
+        # 更新文件计数
+        self.file_count = calculate_number_of_files(self.json_store_path)
+
+        from tools import utils
+
+        from crawler.var import crawler_type_var
 
         return (
             f"{self.json_store_path}/{crawler_type_var.get()}_{store_type}_{utils.get_current_date()}.json",

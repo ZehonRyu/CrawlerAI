@@ -126,11 +126,29 @@ async def batch_update_zhihu_question_answers(
     Returns:
 
     """
-    if not question_answers:
-        return
+    utils.logger.info(
+        f"[store.zhihu.batch_update_zhihu_question_answers] 开始批量更新 {len(question_answers)} 条知乎问题回答"
+    )
+    try:
+        if not question_answers:
+            utils.logger.info(
+                "[store.zhihu.batch_update_zhihu_question_answers] 没有回答需要更新"
+            )
+            return
 
-    for question_answer in question_answers:
-        await update_zhihu_question_answer(question_answer)
+        for question_answer in question_answers:
+            await update_zhihu_question_answer(question_answer)
+        utils.logger.info("[store.zhihu.batch_update_zhihu_question_answers] 批量更新完成")
+    except Exception as e:
+        utils.logger.error(
+            f"[store.zhihu.batch_update_zhihu_question_answers] 批量更新时出错: {e}"
+        )
+        import traceback
+
+        utils.logger.error(
+            f"[store.zhihu.batch_update_zhihu_question_answers] 错误追踪: {traceback.format_exc()}"
+        )
+        raise  # 重新抛出异常
 
 
 async def update_zhihu_question_answer(question_answer: ZhihuQuestionAnswer):
@@ -142,7 +160,27 @@ async def update_zhihu_question_answer(question_answer: ZhihuQuestionAnswer):
     Returns:
 
     """
-    question_answer.source_keyword = source_keyword_var.get()
-    local_db_item = question_answer.model_dump()
-    local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
-    await ZhihuStoreFactory.create_store().store_content(local_db_item)
+    try:
+        utils.logger.debug(
+            f"[store.zhihu.update_zhihu_question_answer] 开始处理回答: {question_answer.content_id}"
+        )
+        question_answer.source_keyword = source_keyword_var.get()
+        local_db_item = question_answer.model_dump()
+        local_db_item.update({"last_modify_ts": utils.get_current_timestamp()})
+        utils.logger.debug(
+            f"[store.zhihu.update_zhihu_question_answer] 准备存储的回答数据: {local_db_item}"
+        )
+        await ZhihuStoreFactory.create_store().store_content(local_db_item)
+        utils.logger.info(
+            f"[store.zhihu.update_zhihu_question_answer] 成功存储回答: {question_answer.content_id}"
+        )
+    except Exception as e:
+        utils.logger.error(
+            f"[store.zhihu.update_zhihu_question_answer] 存储回答 {question_answer.content_id} 时出错: {e}"
+        )
+        import traceback
+
+        utils.logger.error(
+            f"[store.zhihu.update_zhihu_question_answer] 错误追踪: {traceback.format_exc()}"
+        )
+        raise

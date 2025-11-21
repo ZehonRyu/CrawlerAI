@@ -87,42 +87,6 @@ class CrawlerConfig:
     session: UserSession = None
 
 
-def clean_crawler_data(session=None) -> None:
-    """
-    清空crawler/data目录
-    如果提供了session，则只清空该会话的数据
-    """
-    if session:
-        # 只清理特定会话的数据
-        crawler_data_dir = session.data_dir
-        print(f"Cleaning session data directory: {crawler_data_dir}")
-    else:
-        # 清理全局数据目录（向后兼容）
-        crawler_data_dir = "data"
-        print("Cleaning global crawler data directory...")
-
-    if os.path.exists(crawler_data_dir):
-        try:
-            # 删除目录中的所有内容
-            for filename in os.listdir(crawler_data_dir):
-                file_path = os.path.join(crawler_data_dir, filename)
-                if os.path.isfile(file_path) or os.path.islink(
-                    file_path
-                ):  # 判断是否是文件或符号链接
-                    os.unlink(file_path)  # 删除文件
-                elif os.path.isdir(file_path):
-                    shutil.rmtree(file_path)
-            print(f"  Directory cleaned: {crawler_data_dir}")
-        except Exception as e:
-            print(f"  Warning: Error cleaning directory {crawler_data_dir}: {e}")
-    else:
-        print(f"  Directory does not exist: {crawler_data_dir}")
-        # 创建目录以便后续使用
-        os.makedirs(crawler_data_dir, exist_ok=True)
-
-    print("Crawler data directory cleaning completed")
-
-
 def find_crawler_files(config: CrawlerConfig) -> List[Tuple[str, str, str]]:
     """
     根据CrawlerConfig查找crawler/data下面的文件
@@ -221,12 +185,16 @@ def run_crawler_internal(
         if task_id is not None:
             task_id = str(task_id)
 
-        # 如果没有任务ID，生成一个新的
-        if not task_id:
-            import uuid
+        # # 如果没有任务ID，生成一个新的
+        # if not task_id:
+        #     import uuid
 
-            task_id = f"generated_task_{uuid.uuid4().hex[:8]}"
-            print(f"生成新的任务ID: {task_id}")
+        #     task_id = f"generated_task_{uuid.uuid4().hex[:8]}"
+        #     print(f"生成新的任务ID: {task_id}")
+        import uuid
+
+        task_id = f"generated_task_{uuid.uuid4().hex[:8]}"
+        print(f"生成新的任务ID: {task_id}")
 
         # 同步var模块中的task_id
         try:
@@ -240,9 +208,14 @@ def run_crawler_internal(
         # 创建用户会话（使用任务ID作为基础）
         session = UserSession(task_id).setup_session()
 
-        # 设置任务ID环境变量，确保其他模块可以访问
-        os.environ["CRAWLER_TASK_ID"] = task_id  # 使用原始任务ID而不是会话ID
-        print(f"设置环境变量 CRAWLER_TASK_ID = {task_id}")
+        # 统一使用task_id作为标识符，并设置所有相关的环境变量
+        os.environ["CRAWLER_TASK_ID"] = task_id
+        os.environ["CRAWLER_WORK_DIR"] = session.session_dir
+        os.environ["DATA_STORAGE_PATH"] = f"sessions/{task_id}/data"
+        os.environ["DATA_DIR"] = f"sessions/{task_id}/data"
+
+        print(f"Session ID: {session.task_id}")
+        print(f"Work directory: {session.session_dir}")
 
         # 创建配置对象
         Cconfig = CrawlerConfig(
@@ -251,9 +224,6 @@ def run_crawler_internal(
             crawlertype=crawlertype,
             session=session,
         )
-        # 创建用户会话
-        if not Cconfig.session:
-            Cconfig.session = UserSession().setup_session()
 
         # 设置线程本地会话
         request_local.set_session(Cconfig.session)
@@ -266,18 +236,12 @@ def run_crawler_internal(
             Cconfig.session, original_config_path, url, task_type
         )
 
-        # 设置环境变量
-        os.environ["CRAWLER_TASK_ID"] = Cconfig.session.task_id
-        os.environ["CRAWLER_WORK_DIR"] = Cconfig.session.session_dir
+        # 设置会话配置路径环境变量
         os.environ["CRAWLER_SESSION_CONFIG"] = session_config_path
-        os.environ["DATA_STORAGE_PATH"] = f"sessions/{Cconfig.session.task_id}/data"
-        os.environ["DATA_DIR"] = f"sessions/{Cconfig.session.task_id}/data"
 
-        print(f"Session ID: {Cconfig.session.task_id}")
-        print(f"Work directory: {Cconfig.session.session_dir}")
         print(f"Session config: {session_config_path}")
-        print(f"设置环境变量 DATA_STORAGE_PATH = sessions/{Cconfig.session.task_id}/data")
-        print(f"设置环境变量 DATA_DIR = sessions/{Cconfig.session.task_id}/data")
+        print(f"设置环境变量 DATA_STORAGE_PATH = sessions/{task_id}/data")
+        print(f"设置环境变量 DATA_DIR = sessions/{task_id}/data")
 
         # 如果提供了URL，验证配置是否正确更新
         if url and task_type:
@@ -375,23 +339,37 @@ def run_crawler_internal(
         try:
             from crawler.media_platform.bilibili.core import BilibiliCrawler
 
-            print(f"BilibiliCrawler应该使用的数据目录: sessions/{Cconfig.session.task_id}/data")
+            print(f"BilibiliCrawler应该使用的数据目录: sessions/{task_id}/data")
         except Exception as e:
             print(f"无法检查BilibiliCrawler: {e}")
 
         # 直接导入并运行爬虫
         # 运行爬虫（使用同步方式）
-        import asyncio
+        try:
+            import asyncio
 
-        from crawler import crawler_main
+            from crawler import crawler_main
 
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        loop.run_until_complete(
-            crawler_main.main(Cconfig.logintype, Cconfig.platform, Cconfig.crawlertype)
-        )
-        loop.close()
-        print("Crawler program execution completed")
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(
+                crawler_main.main(
+                    Cconfig.logintype, Cconfig.platform, Cconfig.crawlertype
+                )
+            )
+            loop.close()
+            print("Crawler program execution completed")
+        except Exception as e:
+            error_msg = f"运行爬虫时出错: {str(e)}"
+            print(f"Error running crawler: {error_msg}")
+            import traceback
+
+            traceback.print_exc()
+            return {
+                "status": "error",
+                "message": error_msg,
+                "task_id": task_id,
+            }
 
         # 爬虫执行完成后，立即传输数据
         print("\n" + "=" * 50)
@@ -417,25 +395,27 @@ def run_crawler_internal(
                     "task_id": task_id,  # 确保返回原始任务ID
                 }
         except Exception as e:
-            print(f"Error during data transmission: {e}")
+            error_msg = f"数据传输时出错: {str(e)}"
+            print(f"Error during data transmission: {error_msg}")
             import traceback
 
             traceback.print_exc()
             return {
                 "status": "error",
-                "message": f"数据传输时出错: {str(e)}",
-                "task_id": task_id,  # 确保返回原始任务ID
+                "message": error_msg,
+                "task_id": task_id,
             }
 
     except Exception as e:
-        print(f"Error running crawler: {e}")
+        error_msg = f"运行爬虫时出错: {str(e)}"
+        print(f"Error in main crawler process: {error_msg}")
         import traceback
 
         traceback.print_exc()
         return {
             "status": "error",
-            "message": f"运行爬虫时出错: {str(e)}",
-            "task_id": task_id,  # 确保返回原始任务ID
+            "message": error_msg,
+            "task_id": task_id,
         }
     finally:
         # 清理环境变量
@@ -601,124 +581,118 @@ def transmit_data(config: CrawlerConfig):
     today = datetime.now().strftime("%Y-%m-%d")
     task_id = task_id_var.get() or os.environ.get("CRAWLER_TASK_ID")
 
-    print(f"Transmit data - Task ID: {task_id}")
-
     # 首先尝试使用会话特定的数据目录
-    data_dir = None
+    data_dirs_to_check = []
     if config.session:
-        # 尝试会话特定的数据目录
-        session_data_dirs = [
+        print("Building list of data directories to check")
+        # 构建要检查的数据目录列表
+        data_dirs_to_check = [
             f"{config.session.data_dir}/{platform}/json",
+            f"{config.session.data_dir}/{platform}/videos",
             f"{config.session.data_dir}/{platform}",
             f"{config.session.session_dir}/data/{platform}/json",
+            f"{config.session.session_dir}/data/{platform}/videos",
             f"{config.session.session_dir}/data/{platform}",
+            f"{config.session.data_dir}",
+            f"{config.session.session_dir}/data",
         ]
 
-        for dir_path in session_data_dirs:
-            if os.path.exists(dir_path):
-                data_dir = dir_path
-                print(f"Using session data directory: {data_dir}")
-                break
+    # 添加全局目录作为备选
+    data_dirs_to_check.extend(
+        [f"data/{platform}/json", f"data/{platform}/videos", f"data/{platform}", "data"]
+    )
 
-    # 如果没有会话特定目录，尝试全局目录
-    if not data_dir:
-        global_data_dirs = [f"data/{platform}/json", f"data/{platform}"]
+    print(f"Data directories to check: {data_dirs_to_check}")
 
-        for dir_path in global_data_dirs:
-            if os.path.exists(dir_path):
-                data_dir = dir_path
-                print(f"Using global data directory: {data_dir}")
-                break
-
-    # 如果仍然找不到数据目录
-    if not data_dir or not os.path.exists(data_dir):
-        logging.error(f"数据目录不存在: {data_dir}")
-        # 列出可能的目录帮助调试
-        print("Available directories:")
-        if os.path.exists("data"):
-            try:
-                print(f"  data: {os.listdir('data')}")
-            except:
-                print("  data: (无法列出内容)")
-        if config.session and os.path.exists(config.session.session_dir):
-            try:
-                session_data_path = f"{config.session.session_dir}/data"
-                if os.path.exists(session_data_path):
-                    print(f"  session data: {os.listdir(session_data_path)}")
-            except:
-                print("  session data: (无法列出内容)")
-        return None
-
-    print(f"Final data directory: {data_dir}")
-
-    # 获取目录中的文件列表
-    try:
-        if os.path.isdir(data_dir):
-            data_dir_contents = os.listdir(data_dir)
-            print(f"Files in data directory: {data_dir_contents}")
+    # 查找所有存在的数据目录
+    existing_data_dirs = []
+    for dir_path in data_dirs_to_check:
+        if os.path.exists(dir_path):
+            existing_data_dirs.append(dir_path)
+            print(f"Found data directory: {dir_path}")
         else:
-            logging.error(f"数据目录不是有效目录: {data_dir}")
-            return None
-    except Exception as e:
-        print(f"Error listing data directory: {e}")
+            print(f"Data directory not found: {dir_path}")
+
+    if not existing_data_dirs:
+        error_msg = "未找到任何有效的数据目录"
+        logging.error(error_msg)
+        print(error_msg)
         return None
 
-    # 查找文件（优先查找与当前任务ID匹配的文件）
-    target_files = []
-    if task_id:
-        # 首先查找与当前任务ID精确匹配的文件
-        for file in data_dir_contents:
-            if (
-                file.startswith(f"{config.crawlertype}_")
-                and (today in file or task_id in file)
-                and file.endswith((".json", ".txt"))
-            ):
-                file_path = os.path.join(data_dir, file)
-                if os.path.isfile(file_path):  # 确保是文件而不是目录
-                    target_files.append((file_path, os.path.getmtime(file_path)))
-                    print(f"Found task-specific file: {file_path}")
+    print(f"Existing data directories: {existing_data_dirs}")
 
-    # 如果没有找到与任务ID匹配的文件，查找今天的文件
-    if not target_files:
-        print("No task-specific file found, searching for today's files")
-        for file in data_dir_contents:
-            if (
-                (
-                    file.startswith(f"{config.crawlertype}_")
-                    or config.crawlertype in file
-                )
-                and (today in file)
-                and file.endswith((".json", ".txt"))
-            ):
-                file_path = os.path.join(data_dir, file)
-                if os.path.isfile(file_path):  # 确保是文件而不是目录
-                    target_files.append((file_path, os.path.getmtime(file_path)))
-                    print(f"Found today's file: {file_path}")
-
-    # 如果仍然没有找到文件，尝试查找任何相关的文件
-    if not target_files:
-        print("No today's files found, searching for any related files")
-        for file in data_dir_contents:
-            if (config.crawlertype in file or platform in file) and file.endswith(
-                (".json", ".txt")
-            ):
-                file_path = os.path.join(data_dir, file)
-                if os.path.isfile(file_path):  # 确保是文件而不是目录
-                    target_files.append((file_path, os.path.getmtime(file_path)))
-                    print(f"Found related file: {file_path}")
-
-    if not target_files:
-        logging.error(f"未找到相关的数据文件: {data_dir}")
-        # 列出目录中的所有文件帮助调试
+    # 在所有存在的目录中查找文件
+    all_potential_files = []
+    for data_dir in existing_data_dirs:
         try:
-            all_files = [
-                f
-                for f in data_dir_contents
-                if os.path.isfile(os.path.join(data_dir, f))
-            ]
-            print(f"All files in directory: {all_files}")
-        except:
-            print("无法列出目录中的文件")
+            # 列出目录中的所有文件（包括子目录）
+            for root, dirs, files in os.walk(data_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    if os.path.isfile(file_path):
+                        all_potential_files.append(
+                            (file_path, os.path.getmtime(file_path), data_dir)
+                        )
+                        print(f"Found file: {file_path}")
+        except Exception as e:
+            print(f"Error walking directory {data_dir}: {e}")
+
+    # 根据匹配度筛选文件
+    target_files = []
+
+    # 1. 首先查找与任务ID精确匹配的文件
+    if task_id:
+        print(f"Searching for files with task_id: {task_id}")
+        for file_path, mtime, data_dir in all_potential_files:
+            filename = os.path.basename(file_path)
+            # 根据不同平台使用不同的匹配规则
+            is_match = False
+
+            if config.platform == "bilibili":
+                # 对于B站，查找包含video关键字的文件
+                is_match = (
+                    (
+                        "video" in filename
+                        or filename.startswith("video_")
+                        or "video_" in filename
+                    )
+                    and (today in filename or task_id in filename)
+                    and filename.endswith((".json", ".txt", ".mp4"))
+                )
+            elif config.platform == "zhihu":
+                # 对于知乎，查找包含question关键字的文件
+                is_match = (
+                    (
+                        "question" in filename
+                        or filename.startswith("question_")
+                        or "question_" in filename
+                    )
+                    and (today in filename or task_id in filename)
+                    and filename.endswith((".json", ".txt", ".mp4"))
+                )
+            else:
+                # 对于其他平台，使用crawlertype进行匹配
+                is_match = (
+                    (
+                        filename.startswith(f"{config.crawlertype}_")
+                        or config.crawlertype in filename
+                        or platform in filename
+                    )
+                    and (today in filename or task_id in filename)
+                    and filename.endswith((".json", ".txt", ".mp4"))
+                )
+
+            if is_match:
+                target_files.append((file_path, mtime))
+                print(f"Found task-specific file: {file_path}")
+
+    if not target_files:
+        error_msg = f"未找到相关的数据文件"
+        logging.error(error_msg)
+        print(error_msg)
+        print("All potential files found during search:")
+        for file_path, mtime, data_dir in all_potential_files:
+            print(f"  {file_path} (mtime: {mtime})")
         return None
 
     # 按修改时间排序，获取最新的文件
@@ -726,6 +700,10 @@ def transmit_data(config: CrawlerConfig):
     data_file_path = target_files[0][0]
 
     print(f"Selected file: {data_file_path}")
+    print(f"File exists: {os.path.exists(data_file_path)}")
+    if os.path.exists(data_file_path):
+        file_size = os.path.getsize(data_file_path)
+        print(f"File size: {file_size} bytes")
 
     # 使用会话特定的传输目录或默认目录
     transmit_dir = "transmit_data"
@@ -740,24 +718,64 @@ def transmit_data(config: CrawlerConfig):
             os.makedirs(transmit_dir)
             print(f"Created transmit directory: {transmit_dir}")
         except Exception as e:
-            logging.error(f"Failed to create transmit directory {transmit_dir}: {e}")
+            error_msg = f"Failed to create transmit directory {transmit_dir}: {e}"
+            logging.error(error_msg)
+            print(error_msg)
             # 回退到默认传输目录
             transmit_dir = "transmit_data"
             if not os.path.exists(transmit_dir):
-                os.makedirs(transmit_dir, exist_ok=True)
+                try:
+                    os.makedirs(transmit_dir, exist_ok=True)
+                    print(f"Created fallback transmit directory: {transmit_dir}")
+                except Exception as fallback_error:
+                    error_msg = f"Failed to create fallback transmit directory {transmit_dir}: {fallback_error}"
+                    logging.error(error_msg)
+                    print(error_msg)
+                    return None
             print(f"Fallback to default transmit directory: {transmit_dir}")
 
     # 构造传输文件名（保留任务ID以确保唯一性）
     filename = os.path.basename(data_file_path)
     # 不再移除任务ID，保持文件名的唯一性
     transmit_file_path = os.path.join(transmit_dir, filename)
-    print(f"Transmit file path: {transmit_file_path}")
+    print(f"Intended transmit file path: {transmit_file_path}")
 
     try:
         # 复制文件到传输目录
+        print(f"Copying file from {data_file_path} to {transmit_file_path}")
+        print(f"Source file exists: {os.path.exists(data_file_path)}")
+        if os.path.exists(data_file_path):
+            print(f"Source file size: {os.path.getsize(data_file_path)} bytes")
+
+        print(f"Destination directory exists: {os.path.exists(transmit_dir)}")
+        if not os.path.exists(transmit_dir):
+            print(f"Creating destination directory: {transmit_dir}")
+            os.makedirs(transmit_dir, exist_ok=True)
+
         shutil.copy2(data_file_path, transmit_file_path)
         print(f"Copied file from {data_file_path} to {transmit_file_path}")
         logging.info(f"数据文件已传输到: {transmit_file_path}")
+
+        # 检查复制是否成功
+        print(f"Destination file exists: {os.path.exists(transmit_file_path)}")
+        if os.path.exists(transmit_file_path):
+            dest_file_size = os.path.getsize(transmit_file_path)
+            print(
+                f"Transmission successful. Destination file size: {dest_file_size} bytes"
+            )
+
+            # 验证文件大小是否一致
+            if os.path.exists(data_file_path):
+                src_file_size = os.path.getsize(data_file_path)
+                if src_file_size == dest_file_size:
+                    print("File size verification passed")
+                else:
+                    print(
+                        f"WARNING: File size mismatch. Source: {src_file_size}, Destination: {dest_file_size}"
+                    )
+        else:
+            print("Transmission failed. File not found after copy operation.")
+            return None
 
         # 返回传输文件路径和会话ID（如果存在）
         result = {"file_path": transmit_file_path}
@@ -766,21 +784,29 @@ def transmit_data(config: CrawlerConfig):
 
         return result
     except Exception as e:
-        logging.error(f"传输数据文件时出错: {e}")
-        print(f"Error copying file: {e}")
+        error_msg = f"传输数据文件时出错: {e}"
+        logging.error(error_msg)
         import traceback
 
         traceback.print_exc()
+
+        if os.path.exists(data_file_path):
+            try:
+                src_stat = os.stat(data_file_path)
+            except Exception as stat_error:
+                print(f"  Error getting source file stats: {stat_error}")
+
+        if os.path.exists(transmit_dir):
+            try:
+                dest_stat = os.stat(transmit_dir)
+                print(f"  Destination dir permissions: {oct(dest_stat.st_mode)}")
+            except Exception as dest_stat_error:
+                print(f"  Error getting destination dir stats: {dest_stat_error}")
+
         return None
 
 
 async def main(Cconfig: CrawlerConfig) -> None:
-    # 0. 清空之前的数据文件（在爬虫运行前）
-    print("\n" + "=" * 50)
-    print("Step 0: Clean historical crawler data")
-    print("=" * 50)
-    clean_crawler_data(Cconfig.session)
-
     # 1. 执行爬虫
     print("\n" + "=" * 50)
     print("Step 1: Execute crawler program")
@@ -831,11 +857,6 @@ async def main(Cconfig: CrawlerConfig) -> None:
         import traceback
 
         traceback.print_exc()
-
-    # 4. 清空爬虫生成文件（可选）
-    print("\n" + "=" * 50)
-    print("Step 4: Clean crawler generated files")
-    # clean_crawler_data(Cconfig.session)  # 如果需要在最后也清空数据，取消注释这行
 
 
 def process_crawler_data(Cconfig: CrawlerConfig) -> str:
